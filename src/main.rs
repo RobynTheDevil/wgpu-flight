@@ -5,13 +5,6 @@
 #![allow(unused_mut)]
 #![allow(unused_must_use)]
 
-extern crate glam;
-extern crate tobj;
-extern crate sdl2;
-extern crate wgpu;
-extern crate pollster;
-extern crate nohash_hasher;
-
 use std::collections::{HashMap, HashSet, BinaryHeap};
 use std::hash::{Hasher, BuildHasher};
 use seahash::SeaHasher;
@@ -20,45 +13,48 @@ use noise::{Perlin, Worley, NoiseFn};
 use pollster::FutureExt as _;
 use glam::*;
 use wgpu::*;
-use sdl2::keyboard::*;
+use sdl2::{EventPump, event::{Event, WindowEvent}, video::Window, keyboard::*};
 
-struct GameState {}
+use sdfshader::gpu::Gpu;
+// use sdfshader::game::Game;
 
-struct AppState {
+struct Game {}
+
+struct App {
     title: String,
-    event_pump: sdl2::EventPump,
-    window: sdl2::video::Window,
-    gamestate: GameState,
+    events: EventPump,
+    window: Window,
+    game: Game,
 }
 
-impl AppState {
+impl App {
 
     fn new(title: String, width: Option<u32>, height: Option<u32>) -> Result<Self, String> {
         env_logger::init();
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
-        let mut event_pump = sdl_context.event_pump()?;
+        let mut events = sdl_context.event_pump()?;
         let window = video_subsystem
             .window(&title, width.unwrap_or(800), height.unwrap_or(600))
             .position_centered()
             .resizable()
             .build()
             .map_err(|e| e.to_string())?;
-        //let gamestate = GameState::new();
-        let gamestate = GameState {};
+        //let game = Game::new();
+        let game = Game {};
         Ok(Self {
             title,
-            event_pump,
+            events,
             window,
-            gamestate,
+            game,
         })
     }
 
     async fn run(&mut self) -> Result<(), String> {
 
-        // let mut gpustate = GPUState::new(&self.window).await;
+        let mut gpu = Gpu::new(&self.window).await;
 
-        // self.gamestate.initialize();
+        // self.game.initialize();
         let mut timer = std::time::Instant::now();
         let mut fps_avg = 0.0;
         let mut prev_keys = HashSet::new();
@@ -70,17 +66,16 @@ impl AppState {
             fps_avg = fps_avg - fps_avg / 5.0 + fps;
             self.window.set_title(format!("{} // FPS {}", self.title, fps_avg as i32).as_str());
 
-            for event in self.event_pump.poll_iter() {
+            for event in self.events.poll_iter() {
                 match event {
-                    sdl2::event::Event::Window {
+                    Event::Window {
                         window_id,
-                        win_event: sdl2::event::WindowEvent::SizeChanged(width, height),
+                        win_event: WindowEvent::SizeChanged(width, height),
                         ..
                     } if window_id == self.window.id() => {
-                        // gpustate.resize(width as u32, height as u32);
+                        gpu.resize(width as u32, height as u32);
                     }
-                    sdl2::event::Event::Quit { .. }
-                    | sdl2::event::Event::KeyDown {
+                    Event::Quit { .. } | Event::KeyDown {
                         keycode: Some(Keycode::Escape),
                     .. } => {
                         break 'running Ok(());
@@ -92,7 +87,7 @@ impl AppState {
             }
 
             // Create a set of pressed Keys.
-            let keys = self.event_pump
+            let keys = self.events
                 .keyboard_state()
                 .pressed_scancodes()
                 .filter_map(Keycode::from_scancode)
@@ -104,11 +99,11 @@ impl AppState {
             //     println!("new_keys: {:?}\told_keys:{:?}", new_keys, old_keys);
             // }
 
-            // self.gamestate.update(elapsed_seconds, &keys)?;
+            // self.game.update(elapsed_seconds, &keys)?;
             prev_keys = keys;
 
-            // gpustate.update(&self.gamestate);
-            // gpustate.render();
+            // gpu.update(&self.game);
+            // gpu.render();
 
         }
 
@@ -120,7 +115,7 @@ impl AppState {
 
 fn main() -> Result<(), String> {
     let title = String::from("SDFShader");
-    let mut app = AppState::new(title, None, None)?;
+    let mut app = App::new(title, None, None)?;
     app.run().block_on()?;
     println!("{}", (0-1) as u32);
     Ok(())
