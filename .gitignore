@@ -1,2 +1,3 @@
 _p.log
-bin/*
+target/*
+Cargo.lock

@@ -1,0 +1,25 @@
+[package]
+name = "sdfshader"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+glam = "0.23.0"
+tobj = "3.2.3"
+seahash = "4.1.0"
+nohash-hasher = "0.2.0"
+noise = "0.8.2"
+env_logger = "0.10"
+pollster = "0.3.0"
+wgpu = "0.15.1"
+
+[dependencies.sdl2]
+git = "https://github.com/Rust-SDL2/rust-sdl2.git"
+rev = "819ab43"
+default-features = false
+features = ["bundled", "raw-window-handle"]
+
+[profile.release]
+debug = 1
+
