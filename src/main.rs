@@ -22,7 +22,10 @@ use glam::*;
 use wgpu::*;
 use sdl2::keyboard::*;
 
+struct GameState {}
+
 struct AppState {
+    title: String,
     event_pump: sdl2::EventPump,
     window: sdl2::video::Window,
     gamestate: GameState,
@@ -30,19 +33,21 @@ struct AppState {
 
 impl AppState {
 
-    fn new(title, width, height) -> Result<Self, String> {
+    fn new(title: String, width: Option<u32>, height: Option<u32>) -> Result<Self, String> {
         env_logger::init();
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let mut event_pump = sdl_context.event_pump()?;
         let window = video_subsystem
-            .window(title, width, height)
+            .window(&title, width.unwrap_or(800), height.unwrap_or(600))
             .position_centered()
             .resizable()
             .build()
             .map_err(|e| e.to_string())?;
-        let gamestate = GameState::new();
+        //let gamestate = GameState::new();
+        let gamestate = GameState {};
         Ok(Self {
+            title,
             event_pump,
             window,
             gamestate,
@@ -51,9 +56,9 @@ impl AppState {
 
     async fn run(&mut self) -> Result<(), String> {
 
-        let mut gpustate = GPUState::new(&self.window).await;
+        // let mut gpustate = GPUState::new(&self.window).await;
 
-        self.gamestate.initialize();
+        // self.gamestate.initialize();
         let mut timer = std::time::Instant::now();
         let mut fps_avg = 0.0;
         let mut prev_keys = HashSet::new();
@@ -63,7 +68,7 @@ impl AppState {
             timer = std::time::Instant::now();
             let fps = 1.0 / elapsed_seconds;
             fps_avg = fps_avg - fps_avg / 5.0 + fps;
-            self.window.set_title(format!("Bobbins // FPS {}", fps_avg as i32).as_str());
+            self.window.set_title(format!("{} // FPS {}", self.title, fps_avg as i32).as_str());
 
             for event in self.event_pump.poll_iter() {
                 match event {
@@ -72,7 +77,7 @@ impl AppState {
                         win_event: sdl2::event::WindowEvent::SizeChanged(width, height),
                         ..
                     } if window_id == self.window.id() => {
-                        gpustate.resize(width as u32, height as u32);
+                        // gpustate.resize(width as u32, height as u32);
                     }
                     sdl2::event::Event::Quit { .. }
                     | sdl2::event::Event::KeyDown {
@@ -99,11 +104,11 @@ impl AppState {
             //     println!("new_keys: {:?}\told_keys:{:?}", new_keys, old_keys);
             // }
 
-            self.gamestate.update(elapsed_seconds, &keys)?;
+            // self.gamestate.update(elapsed_seconds, &keys)?;
             prev_keys = keys;
 
-            gpustate.update(&self.gamestate);
-            gpustate.render();
+            // gpustate.update(&self.gamestate);
+            // gpustate.render();
 
         }
 
@@ -114,7 +119,8 @@ impl AppState {
 //}}}
 
 fn main() -> Result<(), String> {
-    let mut app = AppState::new()?;
+    let title = String::from("SDFShader");
+    let mut app = AppState::new(title, None, None)?;
     app.run().block_on()?;
     println!("{}", (0-1) as u32);
     Ok(())
