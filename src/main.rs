@@ -30,13 +30,13 @@ struct AppState {
 
 impl AppState {
 
-    fn new() -> Result<Self, String> {
+    fn new(title, width, height) -> Result<Self, String> {
         env_logger::init();
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let mut event_pump = sdl_context.event_pump()?;
         let window = video_subsystem
-            .window("Bobbins", 800, 600)
+            .window(title, width, height)
             .position_centered()
             .resizable()
             .build()
@@ -77,8 +77,7 @@ impl AppState {
                     sdl2::event::Event::Quit { .. }
                     | sdl2::event::Event::KeyDown {
                         keycode: Some(Keycode::Escape),
-                        ..
-                    } => {
+                    .. } => {
                         break 'running Ok(());
                     }
                     e => {
