@@ -1,25 +1,23 @@
 
 // vertex
 
-struct Camera {
-    position: vec4<f32>,
+struct Globals {
+    // Camera
+    c_position: vec4<f32>,
     mat_view: mat4x4<f32>,
     mat_proj: mat4x4<f32>,
-};
-@group(0) @binding(0)
-var<uniform> camera: Camera;
 
-struct Light {
+    // Light
     //position not used currently (global direction)
-    position: vec4<f32>,
-    color: vec4<f32>,
+    l_position: vec4<f32>,
+    l_color: vec4<f32>,
     ambient_color_strength: vec4<f32>,
     diffuse_color_strength: vec4<f32>,
     specular_color_strength: vec4<f32>,
-    direction: vec4<f32>,
+    l_direction: vec4<f32>,
 }
-@group(0) @binding(1)
-var<uniform> light: Light;
+@group(0) @binding(0)
+var<uniform> globals: Globals;
 
 struct VertexInput {
     @location(0) position: vec4<f32>,
@@ -37,7 +35,7 @@ struct VertexOutput {
 @vertex
 fn vs_main(vert: VertexInput) -> VertexOutput {
 	var out: VertexOutput;
-	out.position = camera.mat_proj * camera.mat_view * vert.position;
+	out.position = globals.mat_proj * globals.mat_view * vert.position;
 	out.color = vert.color;
     out.world_normal = vert.normal;
     out.world_position = vert.position;
@@ -48,10 +46,10 @@ fn vs_main(vert: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let ambient_color = light.ambient_color_strength.rgb * light.ambient_color_strength.a;
-    let diffuse_color = light.diffuse_color_strength.rgb * light.diffuse_color_strength.a * dot(in.world_normal.xyz, light.direction.xyz);
-    let view_dir = normalize(camera.position.xyz - in.world_position.xyz);
-    let half_dir = normalize(view_dir + light.direction.xyz);
+    let ambient_color = globals.ambient_color_strength.rgb * globals.ambient_color_strength.a;
+    let diffuse_color = globals.diffuse_color_strength.rgb * globals.diffuse_color_strength.a * dot(in.world_normal.xyz, globals.l_direction.xyz);
+    let view_dir = normalize(globals.c_position.xyz - in.world_position.xyz);
+    let half_dir = normalize(view_dir + globals.l_direction.xyz);
     let specular_color = pow(max(dot(half_dir, in.world_normal.xyz), 0.0), 32.0) * diffuse_color;
     let ret = (ambient_color + diffuse_color + specular_color) * in.color.rgb;
     /* let ret = (ambient_color + diffuse_color) * in.color.rgb; */

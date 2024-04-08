@@ -77,10 +77,10 @@ pub struct TerrainPass {
     pub global_bind_group: BindGroup,
     //pub local_bind_group_layout: BindGroupLayout,
     //pub local_bind_groups: HashMap<usize, BindGroup>,
-    //pub depth_texture: SimpleTexture,
     pub vertex_buffer_general: Buffer,
     pub vertex_buffer_world: Buffer,
     pub index_buffer_world: Buffer,
+    pub depth_texture: SimpleTexture,
     pub render_pipeline: RenderPipeline,
     //pub instance_buffers: HashMap<usize, Buffer>,
 }
@@ -88,10 +88,11 @@ pub struct TerrainPass {
 impl TerrainPass {
     pub fn new(
         config: &TerrainConfig,
-        gpu: &Gpu,
+        device: &Device,
+        surface_config: &SurfaceConfiguration,
     ) -> Self {
         // buffers{{{
-        let global_uniform_buffer = gpu.device.create_buffer(
+        let global_uniform_buffer = device.create_buffer(
             &BufferDescriptor {
                 size: (CameraUniform::size_of()
                     + LightUniform::size_of()) as u64,
@@ -100,7 +101,7 @@ impl TerrainPass {
                 label: Some("Camera and Light Uniform"),
         });
 
-        let vertex_buffer_general = gpu.device.create_buffer(
+        let vertex_buffer_general = device.create_buffer(
             &BufferDescriptor {
                 size: Limits::downlevel_defaults().max_buffer_size,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
@@ -108,14 +109,14 @@ impl TerrainPass {
                 label: Some("General Vertex Buffer"),
         });
 
-        let vertex_buffer_world = gpu.device.create_buffer(
+        let vertex_buffer_world = device.create_buffer(
             &BufferDescriptor {
                 size: Limits::downlevel_defaults().max_buffer_size,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
                 label: Some("World Chunk Vertex Buffer"),
         });
-        let index_buffer_world = gpu.device.create_buffer(
+        let index_buffer_world = device.create_buffer(
             &BufferDescriptor {
                 size: Limits::downlevel_defaults().max_buffer_size,
                 usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
@@ -125,12 +126,12 @@ impl TerrainPass {
 
         //let index_buffer_pool = BufferPool::new(ChunkMesh::MAX_INDEX_MEM);
         //let vertex_buffer_pool = BufferPool::new(ChunkMesh::MAX_INDEX as usize * Vertex::size_of() as usize);
-        //let depth_texture = SimpleTexture::create_depth_texture(&gpu.device, &config, "depth_texture");
+        let depth_texture = SimpleTexture::create_depth_texture(device, surface_config, "depth_texture");
 
 //}}}
         // bindgroups{{{
 
-        let global_bind_group_layout = gpu.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        let global_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[
                 // camera and light uniform
                 BindGroupLayoutEntry {
@@ -146,7 +147,7 @@ impl TerrainPass {
             ],
             label: Some("bind_group_layout"),
         });
-        let global_bind_group = gpu.device.create_bind_group(&BindGroupDescriptor {
+        let global_bind_group = device.create_bind_group(&BindGroupDescriptor {
             layout: &global_bind_group_layout,
             entries: &[
                 BindGroupEntry{
@@ -159,7 +160,7 @@ impl TerrainPass {
 
 //}}}
 
-        let pipeline_layout = gpu.device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             bind_group_layouts: &[
                 &global_bind_group_layout
             ],
@@ -173,9 +174,9 @@ impl TerrainPass {
         };
 
         let render_pipeline = Self::create_render_pipeline(
-            &gpu.device,
+            device,
             &pipeline_layout,
-            gpu.config.format,
+            surface_config.format,
             Some(SimpleTexture::DEPTH_FORMAT),
             &[
                 VertexBufferLayout {
@@ -200,58 +201,9 @@ impl TerrainPass {
             vertex_buffer_general,
             vertex_buffer_world,
             index_buffer_world,
+            depth_texture,
             render_pipeline,
         }
-    }
-
-    //pub fn update(&mut self, gamestate: &GameState) {
-    //    // world chunk triangles
-    //    let (visible, updated) = gamestate.get_chunks_to_write();
-    //    for (key, mesh) in &visible {
-    //        let v = self.vertex_buffer_pool.reserve(key, updated);
-    //        match v {
-    //            None => {continue;}
-    //            Some(v) => {
-    //                gpu.queue.write_buffer(&self.vertex_buffer_world, v as u64, mesh.vertex_array());
-    //            }
-    //        }
-    //        let i = self.index_buffer_pool.reserve(key, updated);
-    //        match i {
-    //            None => {continue;}
-    //            Some(i) => {
-    //                let offset = (v.unwrap() / Vertex::size_of()) as u32;
-    //                gpu.queue.write_buffer(&self.index_buffer_world, i as u64, &mesh.index_array(offset));
-    //            }
-    //        }
-    //    }
-    //    // free chunks not visible
-    //    if self.vertex_buffer_pool.len() < visible.len()
-    //        || self.index_buffer_pool.len() < visible.len()
-    //    {
-    //        let removed = self.vertex_buffer_pool.keep_reserved(&visible);
-    //        for i in removed {
-    //            // gpu.queue.write_buffer(&self.vertex_buffer_world, i as u64, &[0; ChunkMesh::MAX_VERTS_MEM]);
-    //        }
-    //        let removed = self.index_buffer_pool.keep_reserved(&visible);
-    //        for i in removed {
-    //            gpu.queue.write_buffer(&self.index_buffer_world, i as u64, &[0; ChunkMesh::MAX_INDEX_MEM]);
-    //        }
-    //    }
-    //
-    //    //uniforms
-    //    let camera_uniform = gamestate.get_camera_uniform();
-    //    gpu.queue.write_buffer(&self.camera_buffer, 0, camera_uniform.as_mem());
-    //    let light_uniform = gamestate.light.to_light_uniform();
-    //    gpu.queue.write_buffer(&self.light_buffer, 0, light_uniform.as_mem());
-    //}
-
-    pub fn draw_mesh<'a: 'b, 'b>(&'a self, mut rpass: RenderPass<'b>)
-    {
-        rpass.set_pipeline(&self.render_pipeline);
-        rpass.set_bind_group(0, &self.global_bind_group, &[]);
-        rpass.set_vertex_buffer(0, self.vertex_buffer_world.slice(..));
-        rpass.set_index_buffer(self.index_buffer_world.slice(..), IndexFormat::Uint32);
-        rpass.draw_indexed(0..Gpu::max_inds() as u32, 0, 0..1);
     }
 
     pub fn create_render_pipeline(
@@ -309,6 +261,15 @@ impl TerrainPass {
         })
     }
 
+    pub fn draw_mesh<'a: 'b, 'b>(&'a self, mut rpass: RenderPass<'b>)
+    {
+        rpass.set_pipeline(&self.render_pipeline);
+        rpass.set_bind_group(0, &self.global_bind_group, &[]);
+        rpass.set_vertex_buffer(0, self.vertex_buffer_world.slice(..));
+        rpass.set_index_buffer(self.index_buffer_world.slice(..), IndexFormat::Uint32);
+        rpass.draw_indexed(0..Gpu::max_inds() as u32, 0, 0..1);
+    }
+
 }
 
 impl Pass for TerrainPass {
@@ -330,15 +291,14 @@ impl Pass for TerrainPass {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: None,
-                //depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                //     view: &self.depth_texture.view,
-                //     depth_ops: Some(Operations {
-                //         load: LoadOp::Clear(0.0),
-                //         store: true,
-                //     }),
-                //     stencil_ops: None,
-                // }),
+                depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                     view: &self.depth_texture.view,
+                     depth_ops: Some(Operations {
+                         load: LoadOp::Clear(0.0),
+                         store: true,
+                     }),
+                     stencil_ops: None,
+                 }),
                 label: None,
             });
             self.draw_mesh(rpass);

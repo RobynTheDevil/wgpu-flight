@@ -7,13 +7,15 @@
 
 use wgpu::*;
 use sdl2::video::Window;
-use crate::render::Vertex;
+use crate::render::*;
+use crate::render::terrain::*;
 
 pub struct Gpu {
     pub surface: Surface,
     pub device: Device,
     pub queue: Queue,
     pub config: SurfaceConfiguration,
+    pub pass: Box<dyn Pass>,
 }
 
 impl Gpu {
@@ -69,11 +71,14 @@ impl Gpu {
         };
         surface.configure(&device, &config);
 
+        let pass = Box::new( TerrainPass::new(&TerrainConfig {}, &device, &config) );
+
         Self {
             surface,
             device,
             queue,
             config,
+            pass,
         }
     }
 
@@ -99,6 +104,10 @@ impl Gpu {
                 panic!("Failed to get current surface texture! Reason: {}", reason)
             }
         };
+    }
+
+    pub fn render(&self) {
+        self.pass.draw();
     }
 
 }
