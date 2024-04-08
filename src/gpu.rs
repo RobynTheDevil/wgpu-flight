@@ -106,8 +106,15 @@ impl Gpu {
         };
     }
 
-    pub fn render(&self) {
-        self.pass.draw();
+    pub fn render(&mut self) -> Result<(), SurfaceError> {
+        let frame = self.get_current_texture();
+        let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("command_encoder"),
+        });
+        self.pass.draw(&frame, &mut encoder);
+        self.queue.submit([encoder.finish()]);
+        frame.present();
+        Ok(())
     }
 
 }

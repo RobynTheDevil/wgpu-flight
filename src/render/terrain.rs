@@ -273,15 +273,11 @@ impl TerrainPass {
 }
 
 impl Pass for TerrainPass {
-    fn draw(&mut self, gpu: &Gpu) -> Result<(), SurfaceError>
+    fn draw(&mut self, frame: &SurfaceTexture, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>
     {
-        let frame = gpu.get_current_texture();
-        let output = frame.texture.create_view(&TextureViewDescriptor::default());
-        let mut encoder = gpu.device.create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("command_encoder"),
-        });
         // render pass
         {
+            let output = frame.texture.create_view(&TextureViewDescriptor::default());
             let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: &output,
@@ -303,8 +299,6 @@ impl Pass for TerrainPass {
             });
             self.draw_mesh(rpass);
         }
-        gpu.queue.submit([encoder.finish()]);
-        frame.present();
         Ok(())
     }
 }

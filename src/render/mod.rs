@@ -1,10 +1,14 @@
-use wgpu::SurfaceError;
+use wgpu::{
+    SurfaceError,
+    SurfaceTexture,
+    CommandEncoder,
+};
 use crate::gpu::Gpu;
 
 pub mod terrain;
 
 pub trait Pass {
-    fn draw(&mut self, gpu: &Gpu) -> Result<(), SurfaceError>;
+    fn draw(&mut self, frame: &SurfaceTexture, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
 }
 
 //{{{ Vertex
