@@ -16,8 +16,10 @@ use wgpu::*;
 use sdl2::{EventPump, event::{Event, WindowEvent}, video::Window, keyboard::*};
 
 pub mod gpu;
+pub mod render;
 
 use crate::gpu::Gpu;
+use crate::render::terrain::TerrainPass;
 // use crate::game::Game;
 
 pub struct Game {}

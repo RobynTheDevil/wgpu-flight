@@ -7,31 +7,21 @@
 
 use wgpu::*;
 use sdl2::video::Window;
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-struct Vertex {
-    position: [f32; 4],
-    normal: [f32; 4],
-    color: [f32; 4],
-}
-impl Vertex {
-    const fn size_of() -> usize { std::mem::size_of::<Self>() }
-}
+use crate::render::Vertex;
 
 pub struct Gpu {
-    surface: Surface,
-    device: Device,
-    queue: Queue,
-    config: SurfaceConfiguration,
+    pub surface: Surface,
+    pub device: Device,
+    pub queue: Queue,
+    pub config: SurfaceConfiguration,
 }
 
 impl Gpu {
 
     // TODO max buffer size is only absolute max. could downscale if needed
     // expected 128 MB?
-    fn max_verts() -> u64 { Limits::downlevel_defaults().max_buffer_size / Vertex::size_of() as u64 }
-    fn max_inds() -> u64 { Limits::downlevel_defaults().max_buffer_size / 4 } // 4 bytes per u32
+    pub fn max_verts() -> u64 { Limits::downlevel_defaults().max_buffer_size / Vertex::size_of() as u64 }
+    pub fn max_inds() -> u64 { Limits::downlevel_defaults().max_buffer_size / 4 } // 4 bytes per u32
 
     // Creating some of the wgpu types requires async code
     pub async fn new(window: &Window) -> Gpu {
@@ -94,6 +84,21 @@ impl Gpu {
         self.config.width = width as u32;
         self.config.height = height as u32;
         self.surface.configure(&self.device, &self.config);
+    }
+
+    pub fn get_current_texture(&self) -> SurfaceTexture {
+        return match self.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(err) => {
+                let reason = match err {
+                    SurfaceError::Timeout => "Timeout",
+                    SurfaceError::Outdated => "Outdated",
+                    SurfaceError::Lost => "Lost",
+                    SurfaceError::OutOfMemory => "OutOfMemory",
+                };
+                panic!("Failed to get current surface texture! Reason: {}", reason)
+            }
+        };
     }
 
 }
