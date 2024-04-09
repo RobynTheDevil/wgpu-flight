@@ -19,10 +19,10 @@ pub mod render;
 pub mod hasher;
 pub mod world;
 pub mod math;
+pub mod game;
 
 use crate::gpu::Gpu;
-
-pub struct Game {}
+use crate::game::Game;
 
 pub struct App {
     pub title: String,
@@ -44,8 +44,7 @@ impl App {
             .resizable()
             .build()
             .map_err(|e| e.to_string())?;
-        //let game = Game::new();
-        let game = Game {};
+        let game = Game::new();
         Ok(Self {
             title,
             events,
