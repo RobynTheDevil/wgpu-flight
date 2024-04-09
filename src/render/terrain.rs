@@ -4,298 +4,11 @@ use glam::*;
 use crate::{
     gpu::Gpu,
     hasher::*,
+    game::Game,
     world::*,
     math::*,
 };
 use super::*;
-
-// Triangle --------------------------{{{
-
-#[derive(Clone, Copy)]
-pub struct Triangle {
-    pub verts: DMat4,
-    pub tex: DMat3,
-    pub normal: DVec3,
-    pub color: Pixel,
-    pub is_line: bool
-}
-
-impl Default for Triangle
-{
-    fn default() -> Self {
-        Self {
-            verts: dmat4(
-                dvec4(0.0, 0.0, 0.0, 0.0),
-                dvec4(0.0, 0.0, 0.0, 0.0),
-                dvec4(0.0, 0.0, 0.0, 0.0),
-                dvec4(0.0, 0.0, 0.0, 0.0),
-            ),
-            tex: dmat3(
-                dvec3(0.0, 0.0, 0.0),
-                dvec3(0.0, 0.0, 0.0),
-                dvec3(0.0, 0.0, 0.0),
-            ),
-            normal: dvec3(0.0, 0.0, 0.0),
-            color: Pixel{r:255, g:255, b:255, a: 0xFF},
-            is_line: false,
-        }
-    }
-}
-
-impl Triangle
-{
-    pub fn new(verts: DMat4, color: Pixel) -> Self
-    {
-        Self {verts: verts, color: color, ..Default::default()}
-    }
-
-    // COPIES
-    pub fn to_vertex(&self) -> [Vertex; 3] {
-        [
-            Vertex{
-                position: self.verts.col(0).as_vec4().to_array(),
-                normal: self.normal.as_vec3().extend(1.0).to_array(),
-                color: [self.color.r as f32 / 255.0, self.color.g as f32 / 255.0, self.color.b as f32 / 255.0, 1.0],
-            },
-            Vertex{
-                position: self.verts.col(1).as_vec4().to_array(),
-                normal: self.normal.as_vec3().extend(1.0).to_array(),
-                color: [self.color.r as f32 / 255.0, self.color.g as f32 / 255.0, self.color.b as f32 / 255.0, 1.0],
-            },
-            Vertex{
-                position: self.verts.col(2).as_vec4().to_array(),
-                normal: self.normal.as_vec3().extend(1.0).to_array(),
-                color: [self.color.r as f32 / 255.0, self.color.g as f32 / 255.0, self.color.b as f32 / 255.0, 1.0],
-            }
-        ]
-    }
-
-    // COPIES
-    pub fn to_array(&self) -> [u8; 3 * Vertex::size_of()] {
-        let arr = unsafe { std::mem::transmute::<[Vertex; 3], [u8; 3 * Vertex::size_of()]>(self.to_vertex()) };
-        arr
-    }
-
-    pub fn from_dvec3(a: DVec3, b: DVec3, c: DVec3) -> Self
-    {
-        Triangle
-        {
-            verts: dmat4
-            (
-                a.extend(1.0),
-                b.extend(1.0),
-                c.extend(1.0),
-                dvec4(0.0, 0.0, 0.0, 0.0),
-            ),
-            ..Default::default()
-        }
-    }
-
-    pub fn rotate(&mut self, angles: DVec3) { self.verts = mat_rotation(angles) * self.verts; }
-    pub fn translate(&mut self, trans: DVec3) { self.verts = mat_translation(trans) * self.verts; }
-    pub fn translate2d(&mut self, trans:DVec2) {
-        for i in 0 .. 3 {
-            self.verts.col(i).x += trans.x;
-            self.verts.col(i).y += trans.y;
-        }
-    }
-    pub fn transform(&mut self, trans: DMat4) { self.verts = trans * self.verts; }
-
-    pub fn calc_normal(&mut self, normal_dir: f64)
-    {
-        let p0 = (self.verts.col(1) - self.verts.col(0)).truncate();
-        let p1 = (self.verts.col(2) - self.verts.col(0)).truncate();
-        self.normal = (p0.cross(p1)).normalize() * normal_dir;
-    }
-
-}
-
-//}}}
-
-// Mesh --------------------------{{{
-
-pub struct Mesh {
-    pub tris: Vec<Triangle>,
-    pub normal_dir: f64,
-    pub has_texture: bool,
-    pub position: DVec3, // local offset
-    pub rotation: DVec3, // local rotation
-    pub preprocessed: bool,
-}
-
-impl Default for Mesh
-{
-    fn default() -> Self
-    {
-        Self
-        {
-            tris:vec![],
-            normal_dir: 1.0,
-            has_texture: false,
-            position: dvec3(0.0, 0.0, 0.0),
-            rotation: dvec3(0.0, 0.0, 0.0),
-            preprocessed: false,
-        }
-    }
-}
-
-impl WorldObject for Mesh
-{
-    fn get_position(&self) -> DVec3 {self.position}
-    fn get_rotation(&self) -> DMat4 {mat_rotation(self.rotation)}
-}
-
-impl Mesh
-{
-
-    // moderate extreme case of rows of infinite planes with chunk size = 16
-    // 768kb, Expected 170 buckets (max buffer size is 128mb currently)
-    // gives max 5 view distance with one buffer
-    // const MAX_VERTS : u64 = 16 * 16 * 16 * 6;
-
-    // target view distance 10, gives 128kb per chunk, 1024 buckets
-    // given moderate extreme case above max chunk size = 8
-    // we can align to 128kb and give an extra 2 verticies per voxel 6->8
-    // const MAX_VERTS : u64 = 8 * 8 * 8 * 8; // 4096
-    // const MAX_MEM_SIZE : usize = Self::MAX_VERTS as usize * Vertex::size_of();
-
-    // added normals to vertex will count as x1.5 larger and return to 6 verts/vox
-    // gives 144kb per chunk for ~910 buckets, view dist of 9
-    pub const MAX_VERTS : u64 = 8 * 8 * 8 * 6; // 3072
-    pub const MAX_MEM_SIZE : usize = Self::MAX_VERTS as usize * Vertex::size_of();
-
-    // TODO: vertex inds will make above obsolete
-
-    pub fn new(tris: Vec<Triangle>) -> Self
-    {
-        Self {tris: tris, ..Default::default()}
-    }
-
-    // COPIES TWICE
-    pub fn to_array(&self) -> [u8; Self::MAX_MEM_SIZE] {
-        let mut ret = [0; Self::MAX_MEM_SIZE];
-        let mut i = 0;
-        let step = 3 * Vertex::size_of();
-        for tri in self.tris.iter(){
-            if i + step >= Self::MAX_MEM_SIZE {break;}
-            let verts = tri.to_array(); // TODO reduce copies
-            ret[i..i + step].copy_from_slice(&verts);
-            i += step;
-        }
-        ret
-    }
-
-    pub fn load_from_object_file(&mut self, filename: String)
-    {
-        let (models, _materials) =
-            tobj::load_obj(
-                &filename,
-                &tobj::LoadOptions::default()
-            )
-            .expect("Failed to load OBJ file");
-
-        let mesh = &models[0].mesh;
-        let mut tris: Vec<Triangle> = Vec::with_capacity(100);
-        for (n, idx) in mesh.indices.iter().enumerate().step_by(3)
-        {
-            let i0 = *idx as usize;
-            let i1 = *(&mesh.indices[n+1]) as usize;
-            let i2 = *(&mesh.indices[n+2]) as usize;
-            let verts = dmat4(
-                dvec4(
-                    mesh.positions[3 * i0] as f64,
-                    mesh.positions[3 * i0 + 1] as f64,
-                    mesh.positions[3 * i0 + 2] as f64,
-                    1.0,
-                ),
-                dvec4(
-                    mesh.positions[3 * i1] as f64,
-                    mesh.positions[3 * i1 + 1] as f64,
-                    mesh.positions[3 * i1 + 2] as f64,
-                    1.0,
-                ),
-                dvec4(
-                    mesh.positions[3 * i2] as f64,
-                    mesh.positions[3 * i2 + 1] as f64,
-                    mesh.positions[3 * i2 + 2] as f64,
-                    1.0,
-                ),
-                dvec4(0.0, 0.0, 0.0, 0.0),
-            );
-            if n < mesh.texcoord_indices.len()
-            {
-                let i0 = *(&mesh.texcoord_indices[n]) as usize;
-                let i1 = *(&mesh.texcoord_indices[n+1]) as usize;
-                let i2 = *(&mesh.texcoord_indices[n+2]) as usize;
-                let tex = dmat3(
-                    dvec3(
-                        mesh.texcoords[2 * i0] as f64,
-                        mesh.texcoords[2 * i0 + 1] as f64,
-                        1.0,
-                    ),
-                    dvec3(
-                        mesh.texcoords[2 * i1] as f64,
-                        mesh.texcoords[2 * i1 + 1] as f64,
-                        1.0,
-                    ),
-                    dvec3(
-                        mesh.texcoords[2 * i2] as f64,
-                        mesh.texcoords[2 * i2 + 1] as f64,
-                        1.0,
-                    ),
-                );
-                tris.push(Triangle{verts:verts, tex:tex, ..Default::default()});
-            }
-            else
-            {
-                tris.push(Triangle{verts:verts, ..Default::default()});
-            }
-        }
-
-        self.tris = tris;
-    }
-
-    pub fn load_texture(&mut self, filename: String)
-    {
-        // TODO texturing
-        // self.texture = olc::Sprite::from_image(&filename)
-        //     .expect("Failed to load Texture file");
-        self.has_texture = true;
-    }
-
-    // unlike general meshes, only preproc once bc attr will not change
-    // skip rotation and translation
-    pub fn preprocess_chunk_mesh(&mut self) {
-        if self.preprocessed { return; }
-        self.preprocessed = true;
-        let position = self.get_position();
-        for tri in self.tris.iter_mut() {
-            tri.calc_normal(self.normal_dir);
-        }
-    }
-
-    pub fn preprocess_mesh(&self, tris_to_raster: &mut Vec<Triangle>)
-    {
-        let position = self.get_position();
-        let rotation = self.get_rotation();
-        for tri in self.tris.iter()
-        {
-            // modelspace
-            let mut tri = *tri; // copy
-
-            // model rotation and translation to worldspace
-            tri.transform(rotation);
-            tri.translate(position);
-
-            // get tri normal
-            tri.calc_normal(self.normal_dir);
-            tris_to_raster.push(tri);
-        }
-    }
-
-}
-
-//}}}
 
 //{{{ ChunkMesh
 
@@ -422,12 +135,14 @@ pub struct TerrainPass {
     pub global_bind_group: BindGroup,
     pub local_bind_group_layout: BindGroupLayout,
     pub local_bind_groups: HashMap<usize, BindGroup>,
+    pub vertex_buffer_pool: BufferPool,
+    pub index_buffer_pool: BufferPool,
     pub vertex_buffer_general: Buffer,
     pub vertex_buffer_world: Buffer,
     pub index_buffer_world: Buffer,
     pub depth_texture: SimpleTexture,
     pub render_pipeline: RenderPipeline,
-    //pub instance_buffers: HashMap<usize, Buffer>,
+    pub verts_count: u32,
 }
 
 impl TerrainPass {
@@ -603,17 +318,72 @@ impl TerrainPass {
             global_bind_group,
             local_bind_group_layout,
             local_bind_groups: Default::default(),
+            vertex_buffer_pool: BufferPool::new(ChunkMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
+            index_buffer_pool: BufferPool::new(ChunkMesh::MAX_INDEX_MEM),
             vertex_buffer_general,
             vertex_buffer_world,
             index_buffer_world,
             depth_texture,
             render_pipeline,
+            verts_count: 0,
         }
     }
 
 }
 
 impl Pass for TerrainPass {
+
+    fn update(&mut self, queue: &Queue, game: &Game) {
+        // general purpose triangles
+        let mut i = 0;
+        for tri in &game.get_tris_to_raster() {
+            if i + 3 * Vertex::size_of() as u64 > Gpu::max_verts() { break; }
+            let dat = tri.to_array();
+            queue.write_buffer(&self.vertex_buffer_general, i, &dat);
+            i += 3 * Vertex::size_of() as u64;
+        }
+        self.verts_count = i as u32;
+
+        // world chunk triangles
+        let (visible, updated) = game.get_chunks_to_write();
+        for (key, mesh) in &visible {
+            let v = self.vertex_buffer_pool.reserve(key, updated);
+            match v {
+                None => {continue;}
+                Some(v) => {
+                    queue.write_buffer(&self.vertex_buffer_world, v as u64, mesh.vertex_array());
+                }
+            }
+            let i = self.index_buffer_pool.reserve(key, updated);
+            match i {
+                None => {continue;}
+                Some(i) => {
+                    let offset = (v.unwrap() / Vertex::size_of()) as u32;
+                    queue.write_buffer(&self.index_buffer_world, i as u64, &mesh.index_array(offset));
+                }
+            }
+        }
+        // free chunks not visible
+        if self.vertex_buffer_pool.len() < visible.len()
+            || self.index_buffer_pool.len() < visible.len()
+        {
+            let removed = self.vertex_buffer_pool.keep_reserved(&visible);
+            for i in removed {
+                // queue.write_buffer(&self.vertex_buffer_world, i as u64, &[0; ChunkMesh::MAX_VERTS_MEM]);
+            }
+            let removed = self.index_buffer_pool.keep_reserved(&visible);
+            for i in removed {
+                queue.write_buffer(&self.index_buffer_world, i as u64, &[0; ChunkMesh::MAX_INDEX_MEM]);
+            }
+        }
+
+        //uniforms
+        let camera = game.get_camera_uniform();
+        queue.write_buffer(&self.global_uniform_buffer, 0, camera.as_mem());
+        let light = game.light.to_light_uniform();
+        queue.write_buffer(&self.global_uniform_buffer, CameraUniform::size_of() as u64, light.as_mem());
+    }
+
     fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>
     {
         // render pass
@@ -630,7 +400,7 @@ impl Pass for TerrainPass {
             depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                  view: &self.depth_texture.view,
                  depth_ops: Some(Operations {
-                     load: LoadOp::Clear(1.0),
+                     load: LoadOp::Clear(0.0),
                      store: true,
                  }),
                  stencil_ops: None,

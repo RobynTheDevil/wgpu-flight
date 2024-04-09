@@ -57,7 +57,7 @@ impl App {
 
         let mut gpu = Gpu::new(&self.window).await;
 
-        // self.game.initialize();
+        self.game.initialize();
         let mut timer = std::time::Instant::now();
         let mut fps_avg = 0.0;
         let mut prev_keys = HashSet::new();
@@ -102,12 +102,9 @@ impl App {
             //     println!("new_keys: {:?}\told_keys:{:?}", new_keys, old_keys);
             // }
 
-            // self.game.update(elapsed_seconds, &keys)?;
+            self.game.update(elapsed_seconds, &keys)?;
             prev_keys = keys;
-
-            // gpu.update(&self.game);
-            gpu.render();
-
+            gpu.render(&self.game);
         }
 
     }

@@ -11,7 +11,8 @@ use nohash_hasher::IntMap;
 use crate::{
     math::*,
     hasher::*,
-    render::terrain::{Triangle, Mesh, ChunkMesh},
+    render::{Triangle, Mesh},
+    render::terrain::ChunkMesh,
 };
 use glam::*;
 

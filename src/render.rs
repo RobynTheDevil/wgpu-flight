@@ -1,11 +1,17 @@
+use std::collections::BinaryHeap;
 use wgpu::*;
 use glam::*;
-use crate::math::*;
+use crate::{
+    hasher::*,
+    math::*,
+    game::Game,
+    render::terrain::ChunkMesh,
+};
 
 pub mod terrain;
-//pub mod sdf;
 
 pub trait Pass {
+    fn update(&mut self, queue: &Queue, game: &Game) {}
     fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
 }
 
@@ -491,5 +497,65 @@ impl Light
 
 // }}}
 
-// Uniform pool?
+//{{{ BufferPool
+
+type MinBinaryHeap<T> = BinaryHeap<std::cmp::Reverse<T>>;
+
+pub struct BufferPool {
+    pub pool: MinBinaryHeap<usize>,
+    pub reserved: SeaHashMap<SeaHashKey, usize>,
+    pub bucket: usize,
+}
+
+impl BufferPool {
+
+    pub fn new(bucket: usize) -> Self {
+        let lim = Limits::downlevel_defaults().max_buffer_size as usize;
+        let rounded_lim = (lim / bucket) * bucket;
+        println!("buffer pool {}, bucket {}", lim, bucket);
+        Self {
+            pool: (0..rounded_lim).step_by(bucket)
+                .map(|x| std::cmp::Reverse(x))
+                .collect::<Vec<std::cmp::Reverse<usize>>>()
+                .into(),
+            reserved: SeaHashMap::new(),
+            bucket: bucket,
+        }
+    }
+
+    pub fn reserve(&mut self, key: &SeaHashKey, force: &SeaHashSet<SeaHashKey>) -> Option<usize> {
+        if self.reserved.contains_key(key) {
+            if ! force.contains(key) {None}
+            else {Some(*self.reserved.get(key).unwrap())}
+        }
+        else {
+            if self.pool.is_empty() {None}
+            else {
+                let i = self.pool.pop().unwrap().0;
+                self.reserved.insert(*key, i);
+                Some(i)
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {self.pool.len()}
+
+    pub fn keep_reserved(&mut self, keep: &Vec<(SeaHashKey, &ChunkMesh)>) -> Vec<usize> {
+        let mut keep_reserved : SeaHashMap<SeaHashKey, usize> = SeaHashMap::new();
+        let mut removed = vec![];
+        for (k, v) in &self.reserved {
+            if ! keep.iter().any(|x| x.0 == *k) {
+                self.pool.push(std::cmp::Reverse(*v));
+                removed.push(*v);
+            } else {
+                keep_reserved.insert(*k, *v);
+            }
+        }
+        self.reserved = keep_reserved;
+        removed
+    }
+
+}
+
+//}}}
 
