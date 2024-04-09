@@ -13,6 +13,7 @@ noise = "0.8.2"
 env_logger = "0.10"
 pollster = "0.3.0"
 wgpu = "0.15.1"
+delegate = "0.12.0"
 
 [dependencies.sdl2]
 git = "https://github.com/Rust-SDL2/rust-sdl2.git"

@@ -321,7 +321,7 @@ impl Default for ChunkMesh {
             // key: World::coord2key(IVec3::ZERO),
             inds: [0; Self::MAX_INDEX as usize],
             verts: [Default::default(); Self::MAX_VERTS as usize],
-            vert_index: SeaHash::map(),
+            vert_index: SeaHashMap::new(),
             next_ind: 0,
             next_vert: 0,
         }

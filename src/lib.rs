@@ -5,13 +5,14 @@
 #![allow(unused_mut)]
 #![allow(unused_must_use)]
 
-use std::collections::{HashMap, HashSet, BinaryHeap};
-use std::hash::{Hasher, BuildHasher};
-use seahash::SeaHasher;
+use std::collections::HashSet;
 use pollster::FutureExt as _;
-use glam::*;
-use wgpu::*;
-use sdl2::{EventPump, event::{Event, WindowEvent}, video::Window, keyboard::*};
+use sdl2::{
+    EventPump,
+    event::{Event, WindowEvent},
+    video::Window,
+    keyboard::*
+};
 
 pub mod gpu;
 pub mod render;
@@ -20,15 +21,14 @@ pub mod world;
 pub mod math;
 
 use crate::gpu::Gpu;
-// use crate::game::Game;
 
 pub struct Game {}
 
 pub struct App {
-    title: String,
-    events: EventPump,
-    window: Window,
-    game: Game,
+    pub title: String,
+    pub events: EventPump,
+    pub window: Window,
+    pub game: Game,
 }
 
 impl App {

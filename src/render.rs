@@ -1,5 +1,4 @@
 use wgpu::*;
-use crate::gpu::Gpu;
 
 pub mod terrain;
 //pub mod sdf;
