@@ -4,7 +4,7 @@ pub mod terrain;
 //pub mod sdf;
 
 pub trait Pass {
-    fn render(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
+    fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
 }
 
 #[derive(Clone, Copy)]

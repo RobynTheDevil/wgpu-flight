@@ -499,6 +499,7 @@ impl TerrainPass {
             ],
             label: Some("Terrain Global Layout"),
         });
+
         let global_bind_group = device.create_bind_group(&BindGroupDescriptor {
             layout: &global_bind_group_layout,
             entries: &[
@@ -528,73 +529,45 @@ impl TerrainPass {
 
 //}}}
 
+        let shader_desc = ShaderModuleDescriptor {
+            source: ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("shader.wgsl"))),
+            label: Some("shader"),
+        };
+        let shader = device.create_shader_module(shader_desc);
+
+        let vertex_layouts = [
+            VertexBufferLayout {
+                array_stride: Vertex::size_of() as BufferAddress,
+                step_mode: VertexStepMode::Vertex,
+                attributes: &vertex_attr_array![
+                    0 => Float32x4,
+                    1 => Float32x4,
+                    2 => Float32x4,
+                ]
+            }
+        ];
+
+        // Render Pipeline{{{
+
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             bind_group_layouts: &[
                 &global_bind_group_layout,
-                &local_bind_group_layout
+                //&local_bind_group_layout
             ],
             push_constant_ranges: &[],
             label: Some("Render Pipeline Layout"),
         });
 
-        let shader_desc = ShaderModuleDescriptor {
-            source: ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("shader.wgsl"))),
-            label: Some("shader"),
-        };
-
-        let render_pipeline = Self::create_render_pipeline(
-            device,
-            &pipeline_layout,
-            surface_config.format,
-            Some(SimpleTexture::DEPTH_FORMAT),
-            &[
-                VertexBufferLayout {
-                    array_stride: Vertex::size_of() as BufferAddress,
-                    step_mode: VertexStepMode::Vertex,
-                    attributes: &vertex_attr_array![
-                        0 => Float32x4,
-                        1 => Float32x4,
-                        2 => Float32x4,
-                    ]
-                }
-            ],
-            shader_desc,
-        );
-
-        Self {
-            global_uniform_buffer,
-            global_bind_group_layout,
-            global_bind_group,
-            local_bind_group_layout,
-            local_bind_groups: Default::default(),
-            vertex_buffer_general,
-            vertex_buffer_world,
-            index_buffer_world,
-            depth_texture,
-            render_pipeline,
-        }
-    }
-
-    pub fn create_render_pipeline(
-        device: &Device,
-        pipeline_layout: &PipelineLayout,
-        color_format: TextureFormat,
-        depth_format: Option<TextureFormat>,
-        vertex_layouts: &[VertexBufferLayout],
-        shader_desc: ShaderModuleDescriptor,
-    ) -> RenderPipeline {
-        let shader = device.create_shader_module(shader_desc);
-
-        device.create_render_pipeline(&RenderPipelineDescriptor {
-            layout: Some(pipeline_layout),
+        let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            layout: Some(&pipeline_layout),
             vertex: VertexState {
-                buffers: vertex_layouts,
+                buffers: &vertex_layouts,
                 module: &shader,
                 entry_point: "vs_main",
             },
             fragment: Some(FragmentState {
                 targets: &[Some(ColorTargetState {
-                    format: color_format,
+                    format: surface_config.format,
                     blend: None,
                     write_mask: ColorWrites::ALL,
                 })],
@@ -610,7 +583,7 @@ impl TerrainPass {
                 polygon_mode: PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: match depth_format {
+            depth_stencil: match Some(SimpleTexture::DEPTH_FORMAT) {
                 None => None,
                 Some(f) => Some(DepthStencilState {
                     format: f,
@@ -627,22 +600,28 @@ impl TerrainPass {
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
-        })
-    }
+        });
 
-    pub fn draw<'a: 'b, 'b>(&'a self, mut rpass: RenderPass<'b>)
-    {
-        rpass.set_pipeline(&self.render_pipeline);
-        rpass.set_bind_group(0, &self.global_bind_group, &[]);
-        rpass.set_vertex_buffer(0, self.vertex_buffer_world.slice(..));
-        rpass.set_index_buffer(self.index_buffer_world.slice(..), IndexFormat::Uint32);
-        rpass.draw_indexed(0..Gpu::max_inds() as u32, 0, 0..1);
+//}}}
+
+        Self {
+            global_uniform_buffer,
+            global_bind_group_layout,
+            global_bind_group,
+            local_bind_group_layout,
+            local_bind_groups: Default::default(),
+            vertex_buffer_general,
+            vertex_buffer_world,
+            index_buffer_world,
+            depth_texture,
+            render_pipeline,
+        }
     }
 
 }
 
 impl Pass for TerrainPass {
-    fn render(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>
+    fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>
     {
         // render pass
         let mut rpass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -665,7 +644,11 @@ impl Pass for TerrainPass {
              }),
             label: None,
         });
-        self.draw(rpass);
+        rpass.set_pipeline(&self.render_pipeline);
+        rpass.set_bind_group(0, &self.global_bind_group, &[]);
+        rpass.set_vertex_buffer(0, self.vertex_buffer_world.slice(..));
+        rpass.set_index_buffer(self.index_buffer_world.slice(..), IndexFormat::Uint32);
+        rpass.draw_indexed(0..Gpu::max_inds() as u32, 0, 0..1);
         Ok(())
     }
 }

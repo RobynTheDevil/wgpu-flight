@@ -112,7 +112,7 @@ impl Gpu {
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("command_encoder"),
         });
-        self.pass.render(&view, &mut encoder);
+        self.pass.draw(&view, &mut encoder);
         self.queue.submit([encoder.finish()]);
         frame.present();
         Ok(())

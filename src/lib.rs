@@ -107,7 +107,7 @@ impl App {
             prev_keys = keys;
 
             // gpu.update(&self.game);
-            // gpu.render();
+            gpu.render();
 
         }
 
