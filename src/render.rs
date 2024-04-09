@@ -2,9 +2,19 @@ use wgpu::*;
 use crate::gpu::Gpu;
 
 pub mod terrain;
+//pub mod sdf;
 
 pub trait Pass {
-    fn draw(&mut self, frame: &SurfaceTexture, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
+    fn render(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
+}
+
+#[derive(Clone, Copy)]
+pub struct Pixel
+{
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
 }
 
 //{{{ Vertex
@@ -16,6 +26,17 @@ pub struct Vertex {
     pub normal: [f32; 4],
     pub color: [f32; 4],
 }
+
+impl Default for Vertex{
+    fn default() -> Self {
+        Self {
+            position: [0.0; 4],
+            normal: [0.0; 4],
+            color: [1.0; 4],
+        }
+    }
+}
+
 impl Vertex {
     pub const fn size_of() -> usize { std::mem::size_of::<Self>() }
 }

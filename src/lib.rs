@@ -8,8 +8,6 @@
 use std::collections::{HashMap, HashSet, BinaryHeap};
 use std::hash::{Hasher, BuildHasher};
 use seahash::SeaHasher;
-use nohash_hasher::IntMap;
-use noise::{Perlin, Worley, NoiseFn};
 use pollster::FutureExt as _;
 use glam::*;
 use wgpu::*;
@@ -17,9 +15,11 @@ use sdl2::{EventPump, event::{Event, WindowEvent}, video::Window, keyboard::*};
 
 pub mod gpu;
 pub mod render;
+pub mod hasher;
+pub mod world;
+pub mod math;
 
 use crate::gpu::Gpu;
-use crate::render::terrain::TerrainPass;
 // use crate::game::Game;
 
 pub struct Game {}

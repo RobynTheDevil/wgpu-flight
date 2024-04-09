@@ -108,10 +108,11 @@ impl Gpu {
 
     pub fn render(&mut self) -> Result<(), SurfaceError> {
         let frame = self.get_current_texture();
+        let view = frame.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("command_encoder"),
         });
-        self.pass.draw(&frame, &mut encoder);
+        self.pass.render(&view, &mut encoder);
         self.queue.submit([encoder.finish()]);
         frame.present();
         Ok(())
