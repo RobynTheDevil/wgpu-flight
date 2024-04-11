@@ -8,7 +8,7 @@ use crate::{
     world::*,
     math::*,
 };
-use super::*;
+use super::{*, globals::Globals};
 
 //{{{ ChunkMesh
 
@@ -130,9 +130,7 @@ pub struct TerrainConfig {
 
 pub struct TerrainPass {
     //Uniforms, textures, render pipeline, camera, buffers
-    pub global_uniform_buffer: Buffer,
-    pub global_bind_group_layout: BindGroupLayout,
-    pub global_bind_group: BindGroup,
+    pub globals: Globals,
     pub local_bind_group_layout: BindGroupLayout,
     pub local_bind_groups: HashMap<usize, BindGroup>,
     pub vertex_buffer_pool: BufferPool,
@@ -152,14 +150,6 @@ impl TerrainPass {
         surface_config: &SurfaceConfiguration,
     ) -> Self {
         // buffers{{{
-        let global_uniform_buffer = device.create_buffer(
-            &BufferDescriptor {
-                size: (CameraUniform::size_of()
-                    + LightUniform::size_of()) as u64,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-                label: Some("Camera and Light Uniform"),
-        });
 
         let vertex_buffer_general = device.create_buffer(
             &BufferDescriptor {
@@ -176,6 +166,7 @@ impl TerrainPass {
                 mapped_at_creation: false,
                 label: Some("World Chunk Vertex Buffer"),
         });
+
         let index_buffer_world = device.create_buffer(
             &BufferDescriptor {
                 size: Limits::downlevel_defaults().max_buffer_size,
@@ -184,40 +175,10 @@ impl TerrainPass {
                 label: Some("World Chunk Index Buffer"),
         });
 
-        //let index_buffer_pool = BufferPool::new(ChunkMesh::MAX_INDEX_MEM);
-        //let vertex_buffer_pool = BufferPool::new(ChunkMesh::MAX_INDEX as usize * Vertex::size_of() as usize);
         let depth_texture = SimpleTexture::create_depth_texture(device, surface_config, "depth_texture");
 
 //}}}
         // bindgroups{{{
-
-        let global_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[
-                // camera and light uniform
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }
-            ],
-            label: Some("Terrain Global Layout"),
-        });
-
-        let global_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            layout: &global_bind_group_layout,
-            entries: &[
-                BindGroupEntry{
-                    binding: 0,
-                    resource: global_uniform_buffer.as_entire_binding(),
-                },
-            ],
-            label: Some("Terrain Globals"),
-        });
 
         let local_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[
@@ -256,10 +217,11 @@ impl TerrainPass {
         ];
 
         // Render Pipeline{{{
+        let globals = Globals::new(device, surface_config);
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             bind_group_layouts: &[
-                &global_bind_group_layout,
+                &globals.bind_group_layout,
                 //&local_bind_group_layout
             ],
             push_constant_ranges: &[],
@@ -313,9 +275,7 @@ impl TerrainPass {
 //}}}
 
         Self {
-            global_uniform_buffer,
-            global_bind_group_layout,
-            global_bind_group,
+            globals,
             local_bind_group_layout,
             local_bind_groups: Default::default(),
             vertex_buffer_pool: BufferPool::new(ChunkMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
@@ -377,11 +337,7 @@ impl Pass for TerrainPass {
             }
         }
 
-        //uniforms
-        let camera = game.get_camera_uniform();
-        queue.write_buffer(&self.global_uniform_buffer, 0, camera.as_mem());
-        let light = game.light.to_light_uniform();
-        queue.write_buffer(&self.global_uniform_buffer, CameraUniform::size_of() as u64, light.as_mem());
+        self.globals.update(queue, game);
     }
 
     fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>
@@ -408,12 +364,11 @@ impl Pass for TerrainPass {
             label: None,
         });
         rpass.set_pipeline(&self.render_pipeline);
-        rpass.set_bind_group(0, &self.global_bind_group, &[]);
+        rpass.set_bind_group(0, &self.globals.bind_group, &[]);
         rpass.set_vertex_buffer(0, self.vertex_buffer_world.slice(..));
         rpass.set_index_buffer(self.index_buffer_world.slice(..), IndexFormat::Uint32);
         rpass.draw_indexed(0..Gpu::max_inds() as u32, 0, 0..1);
         Ok(())
     }
 }
-
 

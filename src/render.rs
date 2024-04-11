@@ -6,8 +6,10 @@ use crate::{
     math::*,
     game::Game,
     render::terrain::ChunkMesh,
+    render::globals::*,
 };
 
+pub mod globals;
 pub mod terrain;
 
 pub trait Pass {
@@ -383,53 +385,6 @@ impl SimpleTexture {
             view,
             sampler,
         }
-    }
-}
-
-//}}}
-
-//{{{ CameraUniform
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct CameraUniform {
-    pub position : [f32; 4],
-    pub mat_view : [[f32; 4]; 4],
-    pub mat_proj : [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-
-    pub const fn size_of() -> usize { std::mem::size_of::<Self>() }
-
-    pub fn as_mem(&self) -> &[u8; Self::size_of()] {
-        let arr = unsafe { std::mem::transmute::<&Self, &[u8; Self::size_of()]>(self) };
-        arr
-    }
-
-}
-
-//}}}
-
-// LightUniform {{{
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct LightUniform {
-    position: [f32; 4],
-    color: [f32; 4],
-    ambient_color_strength: [f32; 4],
-    diffuse_color_strength: [f32; 4],
-    specular_color_strength: [f32; 4],
-    direction: [f32; 4],
-}
-
-impl LightUniform {
-    pub const fn size_of() -> usize { std::mem::size_of::<Self>() }
-
-    pub fn as_mem(&self) -> &[u8; Self::size_of()] {
-        let arr = unsafe { std::mem::transmute::<&Self, &[u8; Self::size_of()]>(self) };
-        arr
     }
 }
 
