@@ -22,6 +22,7 @@ pub mod math;
 pub mod game;
 pub mod player;
 pub mod direction;
+pub mod generator;
 
 use crate::gpu::Gpu;
 use crate::game::Game;

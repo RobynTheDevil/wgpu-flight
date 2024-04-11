@@ -13,42 +13,11 @@ use crate::{
     hasher::*,
     direction::*,
     player::Player,
+    generator::DistanceField,
     render::{Triangle, Mesh},
     render::terrain::ChunkMesh,
 };
 use glam::*;
-
-// DistanceField{{{
-
-pub struct DistanceField
-{
-    lucifer: Worley,
-}
-
-impl DistanceField
-{
-
-    pub fn new() -> Self
-    {
-        Self
-        {
-            lucifer: Default::default(),
-        }
-    }
-
-    pub fn gen(&self, pos: DVec3) -> u8
-    {
-        // let df = df_sphere(pos, 5.0);
-        // let df = df_plane(pos, dvec3(1.0, 1.0, 1.0), 1.0);
-       // let df = df + 2.0 * pos.x.sin() * pos.y.sin() * pos.z.sin();
-        let df = self.lucifer.get([pos.x, pos.y, pos.z]);
-        let d  = (df * 64.0) as i32 + 128;
-        std::cmp::min(std::cmp::max(0, d), 255) as u8
-    }
-
-}
-
-//}}}
 
 //{{{ Octree -- linearly hashed octree with locational codes
 
