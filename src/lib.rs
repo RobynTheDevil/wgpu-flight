@@ -24,7 +24,6 @@ pub mod game;
 pub mod player;
 pub mod direction;
 pub mod generator;
-pub mod bobbins;
 
 use crate::gpu::Gpu;
 use crate::game::Game;

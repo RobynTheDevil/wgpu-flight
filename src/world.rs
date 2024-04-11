@@ -12,6 +12,8 @@ use crate::{
     render::IndexedMesh,
 };
 
+pub mod bobbins;
+
 pub trait World {
     fn new() -> Self where Self: Sized;
     fn initialize(&mut self);

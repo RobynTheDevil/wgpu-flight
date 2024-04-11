@@ -5,10 +5,11 @@ use crate::{
     gpu::Gpu,
     hasher::*,
     game::Game,
-    world::*,
     octree::*,
     math::*,
-    bobbins::*,
+    world::{*,
+        bobbins::*,
+    },
 };
 use super::{*,
     globals::Globals,

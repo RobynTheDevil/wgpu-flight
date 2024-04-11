@@ -6,11 +6,12 @@ use crate::{
     math::*,
     player::Player,
     direction::*,
-    world::*,
-    bobbins::*,
+    world::{*,
+        bobbins::BobbinsWorld,
+    },
     render::{*,
         globals::CameraUniform,
-    }
+    },
 };
 
 pub struct Game {
