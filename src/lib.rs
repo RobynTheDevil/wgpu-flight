@@ -20,6 +20,8 @@ pub mod hasher;
 pub mod world;
 pub mod math;
 pub mod game;
+pub mod player;
+pub mod direction;
 
 use crate::gpu::Gpu;
 use crate::game::Game;

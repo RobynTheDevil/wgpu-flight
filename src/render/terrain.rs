@@ -305,7 +305,7 @@ impl Pass for TerrainPass {
         self.verts_count = i as u32;
 
         // world chunk triangles
-        let (visible, updated) = game.get_chunks_to_write();
+        let (visible, updated) = game.world.get_chunks_to_write();
         for (key, mesh) in &visible {
             let v = self.vertex_buffer_pool.reserve(key, updated);
             match v {
