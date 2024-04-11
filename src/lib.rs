@@ -19,10 +19,12 @@ pub mod render;
 pub mod hasher;
 pub mod world;
 pub mod math;
+pub mod octree;
 pub mod game;
 pub mod player;
 pub mod direction;
 pub mod generator;
+pub mod bobbins;
 
 use crate::gpu::Gpu;
 use crate::game::Game;

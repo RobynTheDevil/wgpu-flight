@@ -6,123 +6,13 @@ use crate::{
     hasher::*,
     game::Game,
     world::*,
+    octree::*,
     math::*,
+    bobbins::*,
 };
-use super::{*, globals::Globals};
-
-//{{{ ChunkMesh
-
-pub struct ChunkMesh {
-    // pub key: SeaHashKey,
-    pub inds:  [u32; Self::MAX_INDEX as usize],
-    pub verts: [Vertex; Self::MAX_VERTS as usize],
-    pub vert_index: SeaHashMap<SeaHashKey, usize>,
-    pub next_ind: usize,
-    pub next_vert: usize,
-}
-
-impl Default for ChunkMesh {
-    fn default() -> Self {
-        Self {
-            // key: World::coord2key(IVec3::ZERO),
-            inds: [0; Self::MAX_INDEX as usize],
-            verts: [Default::default(); Self::MAX_VERTS as usize],
-            vert_index: SeaHashMap::new(),
-            next_ind: 0,
-            next_vert: 0,
-        }
-    }
-
-}
-
-impl ChunkMesh {
-    const MAX_INDEX: u64 = Mesh::MAX_VERTS; // 3072
-    const MAX_VERTS: u64 = 8 * 8 * 8;   //  512
-    const MAX_INDEX_MEM: usize = Self::MAX_INDEX as usize * 4; // u32
-    const MAX_VERTS_MEM: usize = Self::MAX_VERTS as usize * Vertex::size_of();
-
-    pub fn new() -> Self {
-        Self {
-            // key,
-            ..Default::default()
-        }
-    }
-
-    pub fn add_positions(&mut self, verts: &[(IVec3, IVec3, SurfacePoint)]) {
-        for i in (0 .. verts.len()).step_by(3) {
-            if self.next_ind + 2 >= Self::MAX_INDEX as usize {return;}
-            for j in 0..3 {
-                // chunk coord, vox coord, position, normal
-                let (c, v, sfp) = verts[i + j];
-                let (ckey, vkey) = (World::coord2key(c), World::coord2key(c + v));
-                let vi = self.vert_index.get(&vkey);
-                match vi {
-                    None => {
-                        if self.next_vert >= Self::MAX_VERTS as usize {return;}
-                        self.vert_index.insert(vkey, self.next_vert);
-                        self.inds[self.next_ind] = self.next_vert as u32;
-                        self.verts[self.next_vert] = Vertex{
-                            position: [sfp.position.x as f32, sfp.position.y as f32, sfp.position.z as f32, 1.0],
-                            normal: [sfp.normal.x as f32, sfp.normal.y as f32, sfp.normal.z as f32, 0.0],
-                            ..Default::default()
-                        };
-                        self.next_vert += 1;
-                    }
-                    Some(vi) => {
-                        self.inds[self.next_ind] = *vi as u32;
-                    }
-                }
-                self.next_ind += 1;
-            }
-        }
-    }
-
-    pub fn calc_plain_normals(&self, ret: &mut [Vertex; Self::MAX_INDEX as usize]) {
-        for i in (0 .. self.next_ind).step_by(3) {
-            let (v0, v1, v2) = (
-                Vec4::from_array(ret[i].position).truncate(),
-                Vec4::from_array(ret[i+1].position).truncate(),
-                Vec4::from_array(ret[i+2].position).truncate()
-            );
-            let normal = (v1 - v0).cross(v2 - v0).normalize().extend(0.0).to_array();
-            ret[i].normal = normal;
-            ret[i+1].normal = normal;
-            ret[i+2].normal = normal;
-        }
-    }
-
-    // indices are relative, need to adjust based on vertex buffer offset given from pool
-    // will need to copy
-    pub fn index_array(&self, offset: u32) -> [u8; Self::MAX_INDEX_MEM] {
-        let mut ret = [0; Self::MAX_INDEX as usize];
-        let mut i = 0;
-        for ind in self.inds {
-            ret[i] = offset + ind;
-            i += 1;
-        }
-        let arr = unsafe { std::mem::transmute::<[u32; Self::MAX_INDEX as usize], [u8; Self::MAX_INDEX_MEM]>(ret) };
-        arr
-    }
-
-    pub fn vertex_array(&self) -> &[u8; Self::MAX_VERTS_MEM] {
-        let arr = unsafe { std::mem::transmute::<&[Vertex; Self::MAX_VERTS as usize], &[u8; Self::MAX_VERTS_MEM]>(&self.verts) };
-        arr
-    }
-
-    pub const MAX_PLAIN_MEM : usize = Self::MAX_INDEX as usize * Vertex::size_of();
-
-    pub fn plain_vertex_array(&self) -> [u8; Self::MAX_PLAIN_MEM] {
-        let mut ret = [Default::default(); Self::MAX_INDEX as usize];
-        for i in 0 .. self.inds.len() {
-            ret[i] = self.verts[self.inds[i] as usize];
-        }
-        self.calc_plain_normals(&mut ret);
-        let arr = unsafe { std::mem::transmute::<[Vertex; Self::MAX_INDEX as usize], [u8; Self::MAX_PLAIN_MEM]>(ret) };
-        arr
-    }
-
-}
-//}}}
+use super::{*,
+    globals::Globals,
+};
 
 pub struct TerrainConfig {
 
@@ -278,8 +168,8 @@ impl TerrainPass {
             globals,
             local_bind_group_layout,
             local_bind_groups: Default::default(),
-            vertex_buffer_pool: BufferPool::new(ChunkMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
-            index_buffer_pool: BufferPool::new(ChunkMesh::MAX_INDEX_MEM),
+            vertex_buffer_pool: BufferPool::new(IndexedMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
+            index_buffer_pool: BufferPool::new(IndexedMesh::MAX_INDEX_MEM),
             vertex_buffer_general,
             vertex_buffer_world,
             index_buffer_world,
@@ -305,7 +195,7 @@ impl Pass for TerrainPass {
         self.verts_count = i as u32;
 
         // world chunk triangles
-        let (visible, updated) = game.world.get_chunks_to_write();
+        let (visible, updated) = game.world.get_meshes();
         for (key, mesh) in &visible {
             let v = self.vertex_buffer_pool.reserve(key, updated);
             match v {
@@ -329,11 +219,11 @@ impl Pass for TerrainPass {
         {
             let removed = self.vertex_buffer_pool.keep_reserved(&visible);
             for i in removed {
-                // queue.write_buffer(&self.vertex_buffer_world, i as u64, &[0; ChunkMesh::MAX_VERTS_MEM]);
+                // queue.write_buffer(&self.vertex_buffer_world, i as u64, &[0; IndexedMesh::MAX_VERTS_MEM]);
             }
             let removed = self.index_buffer_pool.keep_reserved(&visible);
             for i in removed {
-                queue.write_buffer(&self.index_buffer_world, i as u64, &[0; ChunkMesh::MAX_INDEX_MEM]);
+                queue.write_buffer(&self.index_buffer_world, i as u64, &[0; IndexedMesh::MAX_INDEX_MEM]);
             }
         }
 

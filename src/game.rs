@@ -7,15 +7,14 @@ use crate::{
     player::Player,
     direction::*,
     world::*,
-    render::{
-        Light, Triangle, Mesh,
+    bobbins::*,
+    render::{*,
         globals::CameraUniform,
-        terrain::ChunkMesh
     }
 };
 
 pub struct Game {
-    pub world: World,
+    pub world: Box<dyn World>,
     pub light: Light,
     pub player : Player,
     pub object_mesh: Mesh,
@@ -40,7 +39,7 @@ impl Game {
 
         Self
         {
-            world: World::new(), // 2^n
+            world: Box::new(BobbinsWorld::new()), // 2^n
             light: Light::new(
                 dvec3(1.0, 0.1, 0.1), 0.1, //ambient
                 dvec3(1.0, 1.0, 1.0), 0.2, //diffuse

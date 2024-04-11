@@ -1,4 +1,5 @@
 use glam::*;
+use crate::hasher::*;
 
 // util functions {{{
 
@@ -190,4 +191,95 @@ pub fn to_dvec3 (vec: IVec3) -> DVec3 { dvec3(vec.x as f64, vec.y as f64, vec.z 
 pub fn to_dvec4 (vec: IVec4) -> DVec4 { dvec4(vec.x as f64, vec.y as f64, vec.z as f64, vec.w as f64) }
 
 //}}}
+
+// coord {{{
+    
+pub fn key2coord(key: &SeaHashKey) -> IVec3
+{
+    ivec3(
+        i32::from_ne_bytes(key[0..4].try_into().unwrap()),
+        i32::from_ne_bytes(key[4..8].try_into().unwrap()),
+        i32::from_ne_bytes(key[8..12].try_into().unwrap()),
+    )
+}
+
+pub fn coord2key(coord: IVec3) -> SeaHashKey
+{
+    let (x, y, z) = (
+        coord.x.to_ne_bytes(),
+        coord.y.to_ne_bytes(),
+        coord.z.to_ne_bytes(),
+    );
+    [
+        x[0], x[1], x[2], x[3],
+        y[0], y[1], y[2], y[3],
+        z[0], z[1], z[2], z[3],
+    ]
+}
+
+pub fn coord2ind(coord: IVec3, size: i32) -> i32 {
+    coord.x + (coord.y + coord.z * size) * size
+}
+
+pub fn ind2coord(ind: i32, size: i32) -> IVec3 {
+    let x = ind % size;
+    let r = ind / size;
+    let y = r % size;
+    let z = r / size;
+    ivec3(x, y, z)
+}
+
+pub fn coord2pos(coord: IVec3, chunk_coord: IVec3, size: i32) -> DVec3 {
+    to_dvec3(coord + chunk_coord * size)
+}
+
+pub fn pos2ind(pos: DVec3, size: i32) -> i32 {
+    let v = ivec3(
+        positive_modulo(pos.x as i32, size),
+        positive_modulo(pos.y as i32, size),
+        positive_modulo(pos.z as i32, size)
+    );
+    v.x + (v.y + v.z * size) * size
+}
+
+pub fn pos2coord(pos: DVec3, size: i32) -> IVec3 {
+    ivec3(
+        pos.x as i32 % size,
+        pos.y as i32 % size,
+        pos.z as i32 % size
+    )
+}
+
+pub fn pos2chunk(pos: DVec3, size: i32) -> IVec3 {
+    ivec3(
+        floor_div(pos.x as i32, size),
+        floor_div(pos.y as i32, size),
+        floor_div(pos.z as i32, size)
+    )
+}
+
+pub fn chunk2pos(chunk_coord: IVec3, size: i32) -> DVec3 {
+    to_dvec3(chunk_coord * size)
+}
+
+pub fn key2mixed(key: SeaHashKey, size: i32) -> (IVec3, IVec3) {
+    coord2mixed(key2coord(&key), size)
+}
+
+pub fn key2mixedkey(key: SeaHashKey, size: i32) -> (SeaHashKey, SeaHashKey) {
+    let (a, b) = key2mixed(key, size);
+    (coord2key(a), coord2key(b))
+}
+
+pub fn coord2mixed(mixed_coord: IVec3, size: i32) -> (IVec3, IVec3) {
+    let coord = ivec3(
+        mixed_coord.x % size,
+        mixed_coord.y % size,
+        mixed_coord.z % size,
+    );
+    let chunk = mixed_coord - coord;
+    (chunk, coord)
+}
+
+// }}}
 
