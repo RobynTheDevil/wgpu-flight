@@ -8,7 +8,7 @@
 use wgpu::*;
 use sdl2::video::Window;
 use crate::{
-    render::{*, terrain::*},
+    render::{*, terrain::*, sdf::*},
     game::Game
 };
 
@@ -32,8 +32,9 @@ impl Gpu {
         let (width, height) = window.size();
 
         let instance = Instance::new( InstanceDescriptor {
-            backends: Backends::PRIMARY,
-            dx12_shader_compiler: Default::default(),
+            backends: Backends::all(),
+            ..Default::default()
+            //dx12_shader_compiler: Default::default(),
         });
 
         let surface = unsafe { instance.create_surface(window) }.unwrap();
@@ -48,8 +49,8 @@ impl Gpu {
 
         let (device, queue) = adapter.request_device(
             &DeviceDescriptor {
-                limits: Limits::default(),
-                features: Features::empty(),
+                limits: Limits::downlevel_defaults(),
+                features: Features::VERTEX_WRITABLE_STORAGE,
                 label: Some("device"),
             },
             None,
@@ -73,7 +74,8 @@ impl Gpu {
         };
         surface.configure(&device, &config);
 
-        let pass = Box::new( TerrainPass::new(&TerrainConfig {}, &device, &config) );
+        //let pass = Box::new( TerrainPass::new(&TerrainConfig {}, &device, &config) );
+        let pass = Box::new( SdfPass::new(&device, &config) );
 
         Self {
             surface,

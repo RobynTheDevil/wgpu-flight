@@ -11,6 +11,7 @@ use crate::{
 
 pub mod globals;
 pub mod terrain;
+pub mod sdf;
 
 pub trait Pass {
     fn update(&mut self, queue: &Queue, game: &Game) {}

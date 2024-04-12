@@ -7,7 +7,8 @@ use crate::{
     player::Player,
     direction::*,
     world::{*,
-        bobbins::BobbinsWorld,
+        //bobbins::BobbinsWorld,
+        sdftest::SdfWorld,
     },
     render::{*,
         globals::CameraUniform,
@@ -40,7 +41,8 @@ impl Game {
 
         Self
         {
-            world: Box::new(BobbinsWorld::new()), // 2^n
+            //world: Box::new(BobbinsWorld::new()), // 2^n
+            world: Box::new(SdfWorld::new()),
             light: Light::new(
                 dvec3(1.0, 0.1, 0.1), 0.1, //ambient
                 dvec3(1.0, 1.0, 1.0), 0.2, //diffuse

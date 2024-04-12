@@ -22,8 +22,8 @@ pub struct TerrainConfig {
 pub struct TerrainPass {
     //Uniforms, textures, render pipeline, camera, buffers
     pub globals: Globals,
-    pub local_bind_group_layout: BindGroupLayout,
-    pub local_bind_groups: HashMap<usize, BindGroup>,
+    pub bind_group_layout: BindGroupLayout,
+    pub bind_groups: HashMap<usize, BindGroup>,
     pub vertex_buffer_pool: BufferPool,
     pub index_buffer_pool: BufferPool,
     pub vertex_buffer_general: Buffer,
@@ -35,12 +35,13 @@ pub struct TerrainPass {
 }
 
 impl TerrainPass {
+// new {{{
     pub fn new(
         config: &TerrainConfig,
         device: &Device,
         surface_config: &SurfaceConfiguration,
     ) -> Self {
-        // buffers{{{
+        // buffers
 
         let vertex_buffer_general = device.create_buffer(
             &BufferDescriptor {
@@ -68,10 +69,9 @@ impl TerrainPass {
 
         let depth_texture = SimpleTexture::create_depth_texture(device, surface_config, "depth_texture");
 
-//}}}
-        // bindgroups{{{
+        // bindgroups
 
-        let local_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+        let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             entries: &[
                 BindGroupLayoutEntry {
                     binding: 0,
@@ -86,8 +86,6 @@ impl TerrainPass {
             ],
             label: Some("Terrain Local Layout"),
         });
-
-//}}}
 
         let shader_desc = ShaderModuleDescriptor {
             source: ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("shader.wgsl"))),
@@ -107,13 +105,14 @@ impl TerrainPass {
             }
         ];
 
-        // Render Pipeline{{{
+        // Render Pipeline
+        
         let globals = Globals::new(device, surface_config);
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             bind_group_layouts: &[
                 &globals.bind_group_layout,
-                //&local_bind_group_layout
+                //&bind_group_layout
             ],
             push_constant_ranges: &[],
             label: Some("Render Pipeline Layout"),
@@ -163,12 +162,10 @@ impl TerrainPass {
             multiview: None,
         });
 
-//}}}
-
         Self {
             globals,
-            local_bind_group_layout,
-            local_bind_groups: Default::default(),
+            bind_group_layout,
+            bind_groups: Default::default(),
             vertex_buffer_pool: BufferPool::new(IndexedMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
             index_buffer_pool: BufferPool::new(IndexedMesh::MAX_INDEX_MEM),
             vertex_buffer_general,
@@ -179,6 +176,7 @@ impl TerrainPass {
             verts_count: 0,
         }
     }
+//}}}
 
 }
 

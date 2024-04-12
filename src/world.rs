@@ -13,12 +13,14 @@ use crate::{
 };
 
 pub mod bobbins;
+pub mod sdftest;
 
 pub trait World {
     fn new() -> Self where Self: Sized;
     fn initialize(&mut self);
     fn update(&mut self, player: &Player);
     fn get_meshes(&self) -> (Vec<(SeaHashKey, &IndexedMesh)>, &SeaHashSet<SeaHashKey>) {panic!("Meshes Not Implemented")}
+    fn get_data(&self) -> Vec<u8> {panic!("Data Not Implemented")}
 }
 
 pub trait WorldObject {
