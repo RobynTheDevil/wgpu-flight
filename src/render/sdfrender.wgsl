@@ -39,6 +39,7 @@ fn vs_main(vert: VertexInput) -> VertexOutput {
 	return out;
 }
 
+// from bobbins
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ambient_color = globals.ambient_color_strength.rgb * globals.ambient_color_strength.a;

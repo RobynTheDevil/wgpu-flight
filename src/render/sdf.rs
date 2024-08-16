@@ -207,13 +207,13 @@ impl SdfPass {
 
 impl Pass for SdfPass {
 
-    fn update(&mut self, queue: &Queue, game: &Game) {
+    fn update(&mut self, queue: &Queue, gamedata: &GameData) {
 
         // world chunk triangles
-        let data = game.world.get_data();
+        // let data = game.world.get_data();
         //        queue.write_buffer(&self.vertex_buffer_world, v as u64, mesh.vertex_array());
 
-        self.globals.update(queue, game);
+        self.globals.update(queue, &gamedata.camera, &gamedata.light);
     }
 
     fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>

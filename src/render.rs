@@ -10,11 +10,18 @@ use crate::{
 };
 
 pub mod globals;
-pub mod terrain;
+//pub mod terrain;
 pub mod sdf;
 
+pub struct GameData
+{
+    pub terrain: Vec<u8>,
+    pub camera: CameraUniform,
+    pub light: LightUniform,
+}
+
 pub trait Pass {
-    fn update(&mut self, queue: &Queue, game: &Game) {}
+    fn update(&mut self, queue: &Queue, gamedata: &GameData) {}
     fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>;
 }
 

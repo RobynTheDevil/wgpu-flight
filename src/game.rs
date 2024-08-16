@@ -125,5 +125,13 @@ impl Game {
         }
     }
 
+    pub fn get_gamedata(&self) -> GameData {
+        GameData {
+            terrain: self.world.get_data(),
+            camera: self.get_camera_uniform(),
+            light: self.light.to_light_uniform(),
+        }
+    }
+
 }
 

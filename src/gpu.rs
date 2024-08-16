@@ -8,7 +8,7 @@
 use wgpu::*;
 use sdl2::video::Window;
 use crate::{
-    render::{*, terrain::*, sdf::*},
+    render::{*, sdf::*},
     game::Game
 };
 
@@ -110,13 +110,13 @@ impl Gpu {
         };
     }
 
-    pub fn render(&mut self, game: &Game) -> Result<(), SurfaceError> {
+    pub fn render(&mut self, gamedata: &GameData) -> Result<(), SurfaceError> {
         let frame = self.get_current_texture();
         let view = frame.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("command_encoder"),
         });
-        self.pass.update(&self.queue, game);
+        self.pass.update(&self.queue, gamedata);
         self.pass.draw(&view, &mut encoder);
         self.queue.submit([encoder.finish()]);
         frame.present();

@@ -108,7 +108,11 @@ impl App {
 
             self.game.update(elapsed_seconds, &keys)?;
             prev_keys = keys;
-            gpu.render(&self.game);
+
+            // game render
+            let gamedata = self.game.get_gamedata();
+
+            gpu.render(&gamedata);
         }
 
     }

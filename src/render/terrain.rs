@@ -182,6 +182,7 @@ impl TerrainPass {
 
 impl Pass for TerrainPass {
 
+    //TODO update to gamedata
     fn update(&mut self, queue: &Queue, game: &Game) {
         // general purpose triangles
         let mut i = 0;

@@ -1,5 +1,4 @@
 use wgpu::*;
-use crate::game::Game;
 use super::Pass;
 
 //{{{ CameraUniform
@@ -103,20 +102,12 @@ impl Globals {
         }
 
     }
-}
 
-impl Pass for Globals {
-
-    fn update(&mut self, queue: &Queue, game: &Game) {
+    pub fn update(&mut self, queue: &Queue, camera: &CameraUniform, light: &LightUniform) {
         //uniforms
-        let camera = game.get_camera_uniform();
         queue.write_buffer(&self.uniform_buffer, 0, camera.as_mem());
-        let light = game.light.to_light_uniform();
         queue.write_buffer(&self.uniform_buffer, CameraUniform::size_of() as u64, light.as_mem());
     }
 
-    fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError> {
-        panic!("dont draw globals");
-    }
 }
 
