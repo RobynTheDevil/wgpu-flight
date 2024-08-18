@@ -5,8 +5,10 @@ use crate::hasher::*;
 
 // math{{{
 
+#[inline]
 pub fn positive_modulo(n: i32, m: i32) -> i32 { (n % m + m) % m }
 
+#[inline]
 pub fn floor_div(x: i32, y: i32) -> i32
 {
     let mut q = x / y;
@@ -15,6 +17,7 @@ pub fn floor_div(x: i32, y: i32) -> i32
     q
 }
 
+#[inline]
 pub fn dfloor_div(x: f64, y: f64) -> i32
 {
     let mut q = (x / y) as i32;
@@ -26,15 +29,19 @@ pub fn dfloor_div(x: f64, y: f64) -> i32
 // fn isign(a: i32) -> i32 {if a > 0 {1} else if a < 0 {-1} else {0}}
 // fn dsign(a: f64) -> f64 {if a > 0.0 {1.0} else if a < 0.0 {-1.0} else {0.0}}
 
+#[inline]
 pub fn isign(a: i32) -> i32 {if a > 0 {1} else {-1}}
+#[inline]
 pub fn dsign(a: f64) -> f64 {if a > 0.0 {1.0} else {-1.0}}
 
+#[inline]
 pub fn is_intersection(a: f64, b: f64) -> bool {dsign(a) != dsign(b)}
 
 //}}}
 
 // distance functions{{{
 
+#[inline]
 pub fn df_torus(pos: DVec3, ax: DVec3, t: DVec2) -> f64
 {
     let l = (pos * (dvec3(1.0, 1.0, 1.0) - ax)).length();
@@ -42,16 +49,19 @@ pub fn df_torus(pos: DVec3, ax: DVec3, t: DVec2) -> f64
     (dvec2(l - t.x, l2)).length() - t.y
 }
 
+#[inline]
 pub fn df_sphere(pos: DVec3, r: f64) -> f64
 {
     pos.length() - r
 }
 
+#[inline]
 pub fn df_plane(pos: DVec3, n: DVec3, h: f64) -> f64
 {
     pos.dot(n.normalize()) + h
 }
 
+#[inline]
 pub fn df_cylinder(pos: DVec3, ax: DVec3, c: f64) -> f64
 {
     (pos * ax).length() - c
@@ -61,6 +71,7 @@ pub fn df_cylinder(pos: DVec3, ax: DVec3, c: f64) -> f64
 
 // matrix{{{
 
+#[inline]
 pub fn mat_projection (fov: f64, ratio: f64, near: f64, far: f64) -> DMat4
 {
     let fov_rad = 1.0 / (fov * 0.5 / 180.0 * std::f64::consts::PI).tan();
@@ -97,6 +108,7 @@ pub fn mat_projection (fov: f64, ratio: f64, near: f64, far: f64) -> DMat4
 
 }
 
+#[inline]
 pub fn mat_rotation_x (theta: f64) -> DMat4
 {
     dmat4(
@@ -107,6 +119,7 @@ pub fn mat_rotation_x (theta: f64) -> DMat4
     )
 }
 
+#[inline]
 pub fn mat_rotation_y (theta: f64) -> DMat4
 {
     dmat4(
@@ -117,6 +130,7 @@ pub fn mat_rotation_y (theta: f64) -> DMat4
     )
 }
 
+#[inline]
 pub fn mat_rotation_z (theta: f64) -> DMat4
 {
     dmat4(
@@ -127,11 +141,13 @@ pub fn mat_rotation_z (theta: f64) -> DMat4
     )
 }
 
+#[inline]
 pub fn mat_rotation (theta: DVec3) -> DMat4
 {
     mat_rotation_z(theta.z) * mat_rotation_y(theta.y) * mat_rotation_x(theta.x)
 }
 
+#[inline]
 pub fn mat_translation (t: DVec3) -> DMat4
 {
     dmat4(
@@ -142,6 +158,7 @@ pub fn mat_translation (t: DVec3) -> DMat4
     )
 }
 
+#[inline]
 pub fn mat_scale (s: DVec3) -> DMat4
 {
     dmat4(
@@ -152,6 +169,7 @@ pub fn mat_scale (s: DVec3) -> DMat4
     )
 }
 
+#[inline]
 pub fn mat_quick_inv (mat: DMat4) -> DMat4
 {
     dmat4(
@@ -167,6 +185,7 @@ pub fn mat_quick_inv (mat: DMat4) -> DMat4
     )
 }
 
+#[inline]
 pub fn mat_look_at (pos: DVec3, rot: DMat4) -> DMat4
 {
     mat_translation(pos) * rot
@@ -174,6 +193,7 @@ pub fn mat_look_at (pos: DVec3, rot: DMat4) -> DMat4
 
 //}}}
 
+#[inline]
 pub fn intersect_plane (plane_dot: f64, normal: DVec3, line_start: DVec4, line_end: DVec4) -> (DVec4, f64)
 {
     let ad = normal.dot(line_start.truncate());
@@ -182,18 +202,22 @@ pub fn intersect_plane (plane_dot: f64, normal: DVec3, line_start: DVec4, line_e
     (line_start + (line_end - line_start) * t, t)
 }
 
+#[inline]
 pub fn dist_plane (plane_dot: f64, normal: DVec3, point: DVec3) -> f64
 {
     normal.dot(point) - plane_dot
 }
 
+#[inline]
 pub fn to_dvec3 (vec: IVec3) -> DVec3 { dvec3(vec.x as f64, vec.y as f64, vec.z as f64) }
+#[inline]
 pub fn to_dvec4 (vec: IVec4) -> DVec4 { dvec4(vec.x as f64, vec.y as f64, vec.z as f64, vec.w as f64) }
 
 //}}}
 
 // coord {{{
     
+#[inline]
 pub fn key2coord(key: &SeaHashKey) -> IVec3
 {
     ivec3(
@@ -203,6 +227,7 @@ pub fn key2coord(key: &SeaHashKey) -> IVec3
     )
 }
 
+#[inline]
 pub fn coord2key(coord: IVec3) -> SeaHashKey
 {
     let (x, y, z) = (
@@ -217,10 +242,12 @@ pub fn coord2key(coord: IVec3) -> SeaHashKey
     ]
 }
 
+#[inline]
 pub fn coord2ind(coord: IVec3, size: i32) -> i32 {
     coord.x + (coord.y + coord.z * size) * size
 }
 
+#[inline]
 pub fn ind2coord(ind: i32, size: i32) -> IVec3 {
     let x = ind % size;
     let r = ind / size;
@@ -229,10 +256,12 @@ pub fn ind2coord(ind: i32, size: i32) -> IVec3 {
     ivec3(x, y, z)
 }
 
+#[inline]
 pub fn coord2pos(coord: IVec3, chunk_coord: IVec3, size: i32) -> DVec3 {
     to_dvec3(coord + chunk_coord * size)
 }
 
+#[inline]
 pub fn pos2ind(pos: DVec3, size: i32) -> i32 {
     let v = ivec3(
         positive_modulo(pos.x as i32, size),
@@ -242,6 +271,7 @@ pub fn pos2ind(pos: DVec3, size: i32) -> i32 {
     v.x + (v.y + v.z * size) * size
 }
 
+#[inline]
 pub fn pos2coord(pos: DVec3, size: i32) -> IVec3 {
     ivec3(
         pos.x as i32 % size,
@@ -250,6 +280,7 @@ pub fn pos2coord(pos: DVec3, size: i32) -> IVec3 {
     )
 }
 
+#[inline]
 pub fn pos2chunk(pos: DVec3, size: i32) -> IVec3 {
     ivec3(
         floor_div(pos.x as i32, size),
@@ -258,19 +289,23 @@ pub fn pos2chunk(pos: DVec3, size: i32) -> IVec3 {
     )
 }
 
+#[inline]
 pub fn chunk2pos(chunk_coord: IVec3, size: i32) -> DVec3 {
     to_dvec3(chunk_coord * size)
 }
 
+#[inline]
 pub fn key2mixed(key: SeaHashKey, size: i32) -> (IVec3, IVec3) {
     coord2mixed(key2coord(&key), size)
 }
 
+#[inline]
 pub fn key2mixedkey(key: SeaHashKey, size: i32) -> (SeaHashKey, SeaHashKey) {
     let (a, b) = key2mixed(key, size);
     (coord2key(a), coord2key(b))
 }
 
+#[inline]
 pub fn coord2mixed(mixed_coord: IVec3, size: i32) -> (IVec3, IVec3) {
     let coord = ivec3(
         mixed_coord.x % size,
