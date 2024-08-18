@@ -8,7 +8,7 @@
 use wgpu::*;
 use sdl2::video::Window;
 use crate::{
-    render::{*, sdf::*},
+    render::{*, sdf::*, terrain::*},
     game::Game
 };
 
@@ -74,8 +74,8 @@ impl Gpu {
         };
         surface.configure(&device, &config);
 
-        //let pass = Box::new( TerrainPass::new(&TerrainConfig {}, &device, &config) );
-        let pass = Box::new( SdfPass::new(&device, &config) );
+        let pass = Box::new( TerrainPass::new(&TerrainConfig {}, &device, &config) );
+        //let pass = Box::new( SdfPass::new(&device, &config) );
 
         Self {
             surface,

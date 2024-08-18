@@ -126,8 +126,12 @@ impl Game {
     }
 
     pub fn get_gamedata(&self) -> GameData {
+        let meshes = self.world.get_meshes();
         GameData {
-            terrain: self.world.get_data(),
+            //terrain: self.world.get_data(),
+            general_triangles: self.get_tris_to_raster(),
+            visible_meshes: meshes.0,
+            updated_mesh_keys: meshes.1,
             camera: self.get_camera_uniform(),
             light: self.light.to_light_uniform(),
         }

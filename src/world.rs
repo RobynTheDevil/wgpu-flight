@@ -12,7 +12,8 @@ use crate::{
     render::IndexedMesh,
 };
 
-pub mod bobbins;
+pub mod chunk;
+//pub mod bobbins;
 pub mod sdftest;
 
 pub trait World {

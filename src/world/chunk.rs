@@ -5,14 +5,9 @@
 #![allow(unused_mut)]
 #![allow(unused_must_use)]
 
-use std::collections::{HashMap, HashSet, BinaryHeap};
-use noise::{Perlin, Worley, NoiseFn};
-use nohash_hasher::IntMap;
 use crate::{
     math::*,
-    hasher::*,
     direction::*,
-    player::Player,
     world::*,
     octree::*,
     generator::DistanceField,
@@ -23,12 +18,12 @@ use glam::*;
 //{{{ WorldChunk
 
 pub struct WorldChunk {
-    coord: IVec3,
-    degree: u8,
-    midpoint: IVec3,
-    scale: f64,
-    sample_scale: f64,
-    sdftree: SDFOctree,
+    pub coord: IVec3,
+    pub degree: u8,
+    pub midpoint: IVec3,
+    pub scale: f64,
+    pub sample_scale: f64,
+    pub sdftree: SDFOctree,
 }
 
 impl WorldChunk {
@@ -237,9 +232,14 @@ impl WorldChunk {
 
 }
 
-// }}}
+//}}}
 
-pub struct BobbinsWorld
+// ChunkManager
+// is essentially a copy of bobbinsworld
+// decoupled from player
+// TODO: generalize queue actions and hashmap objects to one object
+
+pub struct ChunkManager
 {
     pub chunk_size: i32,
     pub chunk_degree: u8,
@@ -257,13 +257,11 @@ pub struct BobbinsWorld
     pub operation_pending: SeaHashSet<SeaHashKey>,
     pub chunk_updated: SeaHashSet<SeaHashKey>,
     pub distance_field: DistanceField,
-    pub cur_chunk: IVec3,
-    pub last_chunk: IVec3,
 }
 
-impl World for BobbinsWorld
+impl ChunkManager
 {
-    fn new() -> Self
+    pub fn new() -> Self
     {
         let chunk_degree = 3;
         Self
@@ -284,33 +282,13 @@ impl World for BobbinsWorld
             operation_pending: SeaHashSet::new(),
             chunk_updated: SeaHashSet::new(),
             distance_field: DistanceField::new(),
-            cur_chunk: ivec3(0, 0, 0),
-            last_chunk: ivec3(-1, 0, 0),
         }
     }
 
-    fn initialize(&mut self){
-        self.generate_chunks(ivec3(0, 0, 0));
+    pub fn chunk_coord2key(&self, coord: IVec3) -> SeaHashKey {
+        let coord = coord * self.chunk_size;
+        coord2key(coord)
     }
-
-    fn update(&mut self, player: &Player){
-        self.cur_chunk = pos2chunk(player.get_position(), self.chunk_size);
-        if self.cur_chunk != self.last_chunk {
-            println!("chunk {} {} {}", self.cur_chunk.x, self.cur_chunk.y, self.cur_chunk.z);
-        }
-        self.generate_chunks(self.cur_chunk);
-        self.last_chunk = self.cur_chunk;
-    }
-
-    fn get_meshes(&self) -> (Vec<(SeaHashKey, &IndexedMesh)>, &SeaHashSet<SeaHashKey>) {
-        let visible = self.visible_meshes(self.cur_chunk);
-        let updated = &self.chunk_updated;
-        (visible, updated)
-    }
-
-}
-
-impl BobbinsWorld {
 
     pub fn create_chunk(&mut self, chunk_coord: IVec3)
     {
@@ -320,40 +298,7 @@ impl BobbinsWorld {
         self.chunks.insert(key, chunk);
     }
 
-    // // (chunk coord, coord, surface point)
-    pub fn neighbor_sfp(&self, chunk: &WorldChunk, coord: IVec3, dirs: &[IVec3], neighbors: &Vec<Option<&WorldChunk>>) -> Vec<Option<(IVec3, IVec3, SurfacePoint)>>
-    {
-        let mut sfps = vec![None; dirs.len() as usize];
-        let n_coords = chunk.neighbor_coords(coord, dirs);
-        for i in 0 .. n_coords.len()
-        {
-            let dir_ind = n_coords[i].0;
-            let n_coord = n_coords[i].1;
-            let n_chunk = neighbors[dir_ind];
-            if ! n_chunk.is_none() {
-                let n_chunk = n_chunk.unwrap();
-                if self.has_surface_map(n_chunk.coord) {
-                    let v = self.get_sfp_by_coord(&n_chunk, n_coord);
-                    match v {
-                        None => {continue;}
-                        Some(v) => {
-                            sfps[i] = Some((
-                                n_chunk.coord * (1 << n_chunk.degree),
-                                n_coord,
-                                SurfacePoint{
-                                    position: v.position + to_dvec3(coord + dirs[i]),
-                                    normal:   v.normal,
-                                }
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-        sfps
-    }
-
-    pub fn neighbor_chunks(&self, chunk_coord: IVec3, dirs: &[IVec3]) -> Vec<Option<&WorldChunk>> {
+    pub fn get_neighbor_chunks(&self, chunk_coord: IVec3, dirs: &[IVec3]) -> Vec<Option<&WorldChunk>> {
         let mut ret = vec![None; dirs.len()];
         for i in 0 .. dirs.len() {
             let chunk_key = self.chunk_coord2key(chunk_coord + dirs[i]);
@@ -362,11 +307,91 @@ impl BobbinsWorld {
         ret
     }
 
+    pub fn generate_chunks(&mut self, cur_chunk: IVec3)
+    {
+        let mut do_generation = false;
+        // check for non-visible chunks
+        let coords = Self::nearby_coords(cur_chunk, self.view_dist);
+        for c in coords.iter() {
+            let key = self.chunk_coord2key(*c);
+            if ! self.operation_pending.contains(&key)
+                && ! self.chunks.contains_key(&key)
+            {
+                do_generation = true;
+                break;
+            }
+        }
+        if do_generation {
+            let coords = Self::nearby_coords(cur_chunk, self.gen_dist);
+            for c in coords.iter() {
+                let key = self.chunk_coord2key(*c);
+                if ! self.operation_pending.contains(&key)
+                    && ! self.chunks.contains_key(&key)
+                {
+                    self.operation_pending.insert(key);
+                    self.queue_chunk.push(*c);
+                }
+            }
+        }
+
+        self.chunk_updated.clear();
+        let mut chunk_updated_list = vec![];
+        for i in 0 .. self.operations_per_frame {
+            if ! self.queue_chunk.is_empty()
+            {
+                let c = self.queue_chunk.pop().unwrap();
+                self.create_chunk(c);
+                // regen surrounding sfp+mesh
+                for dir in IDirection::NEGATIVE_DIRS
+                {
+                    let cc = c + *dir;
+                    let key = self.chunk_coord2key(cc);
+                    if self.chunks.contains_key(&key)
+                        && ! self.operation_pending.contains(&key)
+                    {
+                        self.operation_pending.insert(key);
+                        self.queue_sfp.push(cc);
+                    }
+                }
+                // c has op pending
+                self.queue_sfp.push(c);
+            }
+            else if ! self.queue_sfp.is_empty()
+            {
+                let c = self.queue_sfp.pop().unwrap();
+                self.create_surface_map(c);
+                // regen surrounding mesh
+                for dir in IDirection::POSITIVE_DIRS
+                {
+                    let cc = c + *dir;
+                    let key = self.chunk_coord2key(cc);
+                    if self.surface_maps.contains_key(&key)
+                        && ! self.operation_pending.contains(&key)
+                    {
+                        self.operation_pending.insert(key);
+                        self.queue_mesh.push(cc);
+                    }
+                }
+                // c has op pending
+                self.queue_mesh.push(c);
+            }
+            else if ! self.queue_mesh.is_empty()
+            {
+                let c = self.queue_mesh.pop().unwrap();
+                self.create_mesh(c);
+                let key = self.chunk_coord2key(c);
+                self.operation_pending.remove(&key);
+                self.chunk_updated.insert(key);
+                chunk_updated_list.push(key);
+            }
+        }
+    }
+
     // assume chunk exists
     pub fn create_surface_map(&mut self, chunk_coord: IVec3)
     {
         let chunk_key = self.chunk_coord2key(chunk_coord);
-        let neighbors = &self.neighbor_chunks(chunk_coord, IDirection::POSITIVE_DIRS);
+        let neighbors = &self.get_neighbor_chunks(chunk_coord, IDirection::POSITIVE_DIRS);
         let chunk = self.chunks.get(&chunk_key).unwrap();
         let chunk_size = 1 << chunk.degree;
         let mut dd = [(0.0, 0.0); 12];
@@ -454,20 +479,54 @@ impl BobbinsWorld {
         }
     }
 
+    // // (chunk coord, coord, surface point)
+    pub fn get_neighbor_sfp(&self, chunk: &WorldChunk, coord: IVec3, dirs: &[IVec3], neighbors: &Vec<Option<&WorldChunk>>) -> Vec<Option<(IVec3, IVec3, SurfacePoint)>>
+    {
+        let mut sfps = vec![None; dirs.len() as usize];
+        let n_coords = chunk.neighbor_coords(coord, dirs);
+        for i in 0 .. n_coords.len()
+        {
+            let dir_ind = n_coords[i].0;
+            let n_coord = n_coords[i].1;
+            let n_chunk = neighbors[dir_ind];
+            if ! n_chunk.is_none() {
+                let n_chunk = n_chunk.unwrap();
+                if self.has_surface_map(n_chunk.coord) {
+                    let v = self.get_sfp_by_coord(&n_chunk, n_coord);
+                    match v {
+                        None => {continue;}
+                        Some(v) => {
+                            sfps[i] = Some((
+                                n_chunk.coord * (1 << n_chunk.degree),
+                                n_coord,
+                                SurfacePoint{
+                                    position: v.position + to_dvec3(coord + dirs[i]),
+                                    normal:   v.normal,
+                                }
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        sfps
+    }
+
+
     // (chunk coord, coord, surface point)
     pub fn create_mesh(&mut self, chunk_coord: IVec3) {
         let chunk_key = self.chunk_coord2key(chunk_coord);
         if ! self.surface_maps.contains_key(&chunk_key) {return}
         let chunk = self.chunks.get(&chunk_key).unwrap();
-        let neighbors = &self.neighbor_chunks(chunk_coord, IDirection::UNIT_DIRS);
-        let n_neighbors = &self.neighbor_chunks(chunk_coord, IDirection::NEGATIVE_DIRS);
+        let neighbors = &self.get_neighbor_chunks(chunk_coord, IDirection::UNIT_DIRS);
+        let n_neighbors = &self.get_neighbor_chunks(chunk_coord, IDirection::NEGATIVE_DIRS);
         let mut mesh = IndexedMesh::new();
         let mesh_position = to_dvec3(chunk.coord * (1 << chunk.degree));
         for loc in self.get_surface_map(chunk_coord).keys()
         {
             let coord = chunk.loc2coord(*loc);
             let dists = chunk.neighbor_dist(coord, IDirection::UNIT_DIRS, neighbors);
-            let sfps = self.neighbor_sfp(&chunk, coord, IDirection::NEGATIVE_DIRS, n_neighbors);
+            let sfps = self.get_neighbor_sfp(&chunk, coord, IDirection::NEGATIVE_DIRS, n_neighbors);
             // create mesh positions
             for s in 0 .. 3 {
                 let (i, j, k) = IDirection::SFP_INDS[s];
@@ -549,86 +608,6 @@ impl BobbinsWorld {
         coords
     }
 
-    pub fn generate_chunks(&mut self, cur_chunk: IVec3)
-    {
-        let mut do_generation = false;
-        // check for non-visible chunks
-        let coords = Self::nearby_coords(cur_chunk, self.view_dist);
-        for c in coords.iter() {
-            let key = self.chunk_coord2key(*c);
-            if ! self.operation_pending.contains(&key)
-                && ! self.chunks.contains_key(&key)
-            {
-                do_generation = true;
-                break;
-            }
-        }
-        if do_generation {
-            let coords = Self::nearby_coords(cur_chunk, self.gen_dist);
-            for c in coords.iter() {
-                let key = self.chunk_coord2key(*c);
-                if ! self.operation_pending.contains(&key)
-                    && ! self.chunks.contains_key(&key)
-                {
-                    self.operation_pending.insert(key);
-                    self.queue_chunk.push(*c);
-                }
-            }
-        }
-
-        self.chunk_updated.clear();
-        let mut chunk_updated_list = vec![];
-        for i in 0 .. self.operations_per_frame {
-            if ! self.queue_chunk.is_empty()
-            {
-                let c = self.queue_chunk.pop().unwrap();
-                self.create_chunk(c);
-                // regen surrounding sfp+mesh
-                for dir in IDirection::NEGATIVE_DIRS
-                {
-                    let cc = c + *dir;
-                    let key = self.chunk_coord2key(cc);
-                    if self.chunks.contains_key(&key)
-                        && ! self.operation_pending.contains(&key)
-                    {
-                        self.operation_pending.insert(key);
-                        self.queue_sfp.push(cc);
-                    }
-                }
-                // c has op pending
-                self.queue_sfp.push(c);
-            }
-            else if ! self.queue_sfp.is_empty()
-            {
-                let c = self.queue_sfp.pop().unwrap();
-                self.create_surface_map(c);
-                // regen surrounding mesh
-                for dir in IDirection::POSITIVE_DIRS
-                {
-                    let cc = c + *dir;
-                    let key = self.chunk_coord2key(cc);
-                    if self.surface_maps.contains_key(&key)
-                        && ! self.operation_pending.contains(&key)
-                    {
-                        self.operation_pending.insert(key);
-                        self.queue_mesh.push(cc);
-                    }
-                }
-                // c has op pending
-                self.queue_mesh.push(c);
-            }
-            else if ! self.queue_mesh.is_empty()
-            {
-                let c = self.queue_mesh.pop().unwrap();
-                self.create_mesh(c);
-                let key = self.chunk_coord2key(c);
-                self.operation_pending.remove(&key);
-                self.chunk_updated.insert(key);
-                chunk_updated_list.push(key);
-            }
-        }
-    }
-
     pub fn visible_meshes(&self, cur_chunk: IVec3) -> Vec<(SeaHashKey, &IndexedMesh)>
     {
         let coords = Self::nearby_coords(cur_chunk, self.view_dist);
@@ -669,15 +648,6 @@ impl BobbinsWorld {
         }
         ret
     }
-
-    // ---- utility static functions{{{
-    
-    pub fn chunk_coord2key(&self, coord: IVec3) -> SeaHashKey {
-        let coord = coord * self.chunk_size;
-        coord2key(coord)
-    }
-
-//}}}
 
 }
 

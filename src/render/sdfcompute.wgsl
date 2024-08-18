@@ -15,23 +15,24 @@ struct Globals {
     l_direction: vec4<f32>,
 }
 
-// 16 u8 voxels
+// 64 u8 voxels (x,y, z shifted)
+// chunk location agnostic
 struct Data {
-    data: vec4<u32>
+    data: mat4x4<u32>,
 }
 
 struct VertexInput {
-    @location(0) position: vec4<f32>
+    @location(0) position: mat4x4<array<f32, 4>>
 };
 
 @group(0) @binding(0)
 var<uniform> globals: Globals;
 
-// from Vertex/Mesh, max buffer size 147,456 / 16
+// from Vertex/Mesh, max buffer size 147,456 / 64
 @group(1) @binding(0)
-var<uniform> data: array<Data, 9216>;
+var<uniform> data: array<Data, 2304>;
 @group(1) @binding(1)
-var<uniform> dst: array<VertexInput, 9216>;
+var<uniform> dst: array<VertexInput, 2304>;
 
 @compute
 @workgroup_size(8,8,1)

@@ -10,12 +10,14 @@ use crate::{
 };
 
 pub mod globals;
-//pub mod terrain;
+pub mod terrain;
 pub mod sdf;
 
-pub struct GameData
+pub struct GameData<'a>
 {
-    pub terrain: Vec<u8>,
+    pub general_triangles: Vec<Triangle>,
+    pub visible_meshes: Vec<(SeaHashKey, &'a IndexedMesh)>,
+    pub updated_mesh_keys: &'a SeaHashSet<SeaHashKey>,
     pub camera: CameraUniform,
     pub light: LightUniform,
 }

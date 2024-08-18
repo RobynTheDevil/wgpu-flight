@@ -4,13 +4,10 @@ use glam::*;
 use crate::{
     gpu::Gpu,
     hasher::*,
-    game::Game,
     octree::*,
     math::*,
-    world::{*,
-        bobbins::*,
-    },
 };
+
 use super::{*,
     globals::Globals,
 };
@@ -183,10 +180,10 @@ impl TerrainPass {
 impl Pass for TerrainPass {
 
     //TODO update to gamedata
-    fn update(&mut self, queue: &Queue, game: &Game) {
+    fn update(&mut self, queue: &Queue, gamedata: &GameData) {
         // general purpose triangles
         let mut i = 0;
-        for tri in &game.get_tris_to_raster() {
+        for tri in &gamedata.general_triangles {
             if i + 3 * Vertex::size_of() as u64 > Gpu::max_verts() { break; }
             let dat = tri.to_array();
             queue.write_buffer(&self.vertex_buffer_general, i, &dat);
@@ -195,8 +192,8 @@ impl Pass for TerrainPass {
         self.verts_count = i as u32;
 
         // world chunk triangles
-        let (visible, updated) = game.world.get_meshes();
-        for (key, mesh) in &visible {
+        let (visible, updated) = (&gamedata.visible_meshes, &gamedata.updated_mesh_keys);
+        for (key, mesh) in visible {
             let v = self.vertex_buffer_pool.reserve(key, updated);
             match v {
                 None => {continue;}
@@ -217,17 +214,17 @@ impl Pass for TerrainPass {
         if self.vertex_buffer_pool.len() < visible.len()
             || self.index_buffer_pool.len() < visible.len()
         {
-            let removed = self.vertex_buffer_pool.keep_reserved(&visible);
+            let removed = self.vertex_buffer_pool.keep_reserved(visible);
             for i in removed {
                 // queue.write_buffer(&self.vertex_buffer_world, i as u64, &[0; IndexedMesh::MAX_VERTS_MEM]);
             }
-            let removed = self.index_buffer_pool.keep_reserved(&visible);
+            let removed = self.index_buffer_pool.keep_reserved(visible);
             for i in removed {
                 queue.write_buffer(&self.index_buffer_world, i as u64, &[0; IndexedMesh::MAX_INDEX_MEM]);
             }
         }
 
-        self.globals.update(queue, game);
+        self.globals.update(queue, &gamedata.camera, &gamedata.light);
     }
 
     fn draw(&mut self, view: &TextureView, encoder: &mut CommandEncoder) -> Result<(), SurfaceError>
