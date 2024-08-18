@@ -85,7 +85,7 @@ impl TerrainPass {
         });
 
         let shader_desc = ShaderModuleDescriptor {
-            source: ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("shader.wgsl"))),
+            source: ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("terrain.wgsl"))),
             label: Some("shader"),
         };
         let shader = device.create_shader_module(shader_desc);

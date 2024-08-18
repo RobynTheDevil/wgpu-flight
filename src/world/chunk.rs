@@ -285,6 +285,7 @@ impl ChunkManager
         }
     }
 
+    #[inline]
     pub fn chunk_coord2key(&self, coord: IVec3) -> SeaHashKey {
         let coord = coord * self.chunk_size;
         coord2key(coord)
