@@ -1,7 +1,6 @@
 use crate::{
     math::*,
     player::Player,
-    render::{terrain::*}
 };
 use super::{*, chunk::*};
 

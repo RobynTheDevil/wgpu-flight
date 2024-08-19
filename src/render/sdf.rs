@@ -210,6 +210,7 @@ impl Pass for SdfPass {
     fn update(&mut self, queue: &Queue, gamedata: &GameData) {
 
         // load sdf directly into compute buffer
+        
         // let data = game.world.get_data();
         //        queue.write_buffer(&self.vertex_buffer_world, v as u64, mesh.vertex_array());
 

@@ -576,39 +576,79 @@ impl Light
 
 // }}}
 
-//{{{ BufferPool
+//{{{ BucketPool
+
+// virtual bufferpool
+// does not actually track memory/buffers, only offsets and buffer number
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BucketCoord {
+    buffer: usize,
+    offset: usize,
+}
 
 type MinBinaryHeap<T> = BinaryHeap<std::cmp::Reverse<T>>;
 
-pub struct BufferPool {
-    pub pool: MinBinaryHeap<usize>,
-    pub reserved: SeaHashMap<SeaHashKey, usize>,
-    pub bucket: usize,
+pub struct BucketPool {
+    // total number of pools (buffers)
+    pub num_dims: usize,
+    // derived
+    pub num_buckets: usize,
+    // total virtual memory
+    pub size: usize,
+    // bucket virtual offset
+    pub bucket_size: usize,
+    // tracks current number of dims loaded into pool (size)
+    pub cur_dim: usize,
+    pub pool: MinBinaryHeap<BucketCoord>,
+    pub reserved: SeaHashMap<SeaHashKey, BucketCoord>,
 }
 
-impl BufferPool {
+impl BucketPool {
 
-    pub fn new(bucket: usize) -> Self {
-        let lim = Limits::downlevel_defaults().max_buffer_size as usize;
-        let rounded_lim = (lim / bucket) * bucket;
-        println!("buffer pool {}, bucket {}", lim, bucket);
-        Self {
-            pool: (0..rounded_lim).step_by(bucket)
-                .map(|x| std::cmp::Reverse(x))
-                .collect::<Vec<std::cmp::Reverse<usize>>>()
-                .into(),
+    #[inline]
+    pub fn len(&self) -> usize {self.pool.len()}
+
+    #[inline]
+    pub fn is_expandable(&self) -> bool {self.num_dims > self.cur_dim}
+
+    #[inline]
+    pub fn is_full(&self) -> bool {self.bucket_size + self.pool.len() > self.size}
+
+    pub fn new(num_dims: usize, size: usize, bucket_size: usize) -> Self {
+        let num_buckets = (size / bucket_size) * bucket_size;
+        println!("buffer pool {}, bucket_size {}", size, bucket_size);
+        let mut s = Self {
+            num_dims,
+            num_buckets,
+            size,
+            bucket_size,
+            cur_dim: 0,
+            pool: MinBinaryHeap::with_capacity(num_dims * num_buckets),
             reserved: SeaHashMap::new(),
-            bucket: bucket,
-        }
+        };
+        s.expand();
+        s
     }
 
-    pub fn reserve(&mut self, key: &SeaHashKey, force: &SeaHashSet<SeaHashKey>) -> Option<usize> {
+    pub fn expand(&mut self) -> bool {
+        if ! self.is_expandable() {return false;}
+        self.pool.append(
+            &mut (0..self.num_buckets).step_by(self.bucket_size)
+                .map(|x| std::cmp::Reverse(BucketCoord{buffer: self.cur_dim, offset: x}))
+                .collect::<MinBinaryHeap<BucketCoord>>()
+        );
+        self.cur_dim += 1;
+        true
+    }
+
+    pub fn reserve(&mut self, key: &SeaHashKey, force: &SeaHashSet<SeaHashKey>) -> Option<BucketCoord> {
         if self.reserved.contains_key(key) {
             if ! force.contains(key) {None}
             else {Some(*self.reserved.get(key).unwrap())}
         }
         else {
-            if self.pool.is_empty() {None}
+            if self.pool.is_empty() && ! self.expand() {None}
             else {
                 let i = self.pool.pop().unwrap().0;
                 self.reserved.insert(*key, i);
@@ -617,10 +657,9 @@ impl BufferPool {
         }
     }
 
-    pub fn len(&self) -> usize {self.pool.len()}
-
-    pub fn keep_reserved(&mut self, keep: &Vec<(SeaHashKey, &IndexedMesh)>) -> Vec<usize> {
-        let mut keep_reserved : SeaHashMap<SeaHashKey, usize> = SeaHashMap::new();
+    // return removed
+    pub fn keep_reserved(&mut self, keep: &Vec<(SeaHashKey, &IndexedMesh)>) -> Vec<BucketCoord> {
+        let mut keep_reserved : SeaHashMap<SeaHashKey, BucketCoord> = SeaHashMap::new();
         let mut removed = vec![];
         for (k, v) in &self.reserved {
             if ! keep.iter().any(|x| x.0 == *k) {

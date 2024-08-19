@@ -21,8 +21,8 @@ pub struct TerrainPass {
     pub globals: Globals,
     pub bind_group_layout: BindGroupLayout,
     pub bind_groups: HashMap<usize, BindGroup>,
-    pub vertex_buffer_pool: BufferPool,
-    pub index_buffer_pool: BufferPool,
+    pub vertex_buckets: BucketPool,
+    pub index_buckets: BucketPool,
     pub vertex_buffer_general: Buffer,
     pub vertex_buffer_world: Buffer,
     pub index_buffer_world: Buffer,
@@ -38,11 +38,13 @@ impl TerrainPass {
         device: &Device,
         surface_config: &SurfaceConfiguration,
     ) -> Self {
+        let max_buffer_size = Limits::downlevel_defaults().max_buffer_size;
+
         // buffers
 
         let vertex_buffer_general = device.create_buffer(
             &BufferDescriptor {
-                size: Limits::downlevel_defaults().max_buffer_size,
+                size: max_buffer_size,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
                 label: Some("General Vertex Buffer"),
@@ -50,7 +52,7 @@ impl TerrainPass {
 
         let vertex_buffer_world = device.create_buffer(
             &BufferDescriptor {
-                size: Limits::downlevel_defaults().max_buffer_size,
+                size: max_buffer_size,
                 usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
                 label: Some("World Chunk Vertex Buffer"),
@@ -58,7 +60,7 @@ impl TerrainPass {
 
         let index_buffer_world = device.create_buffer(
             &BufferDescriptor {
-                size: Limits::downlevel_defaults().max_buffer_size,
+                size: max_buffer_size,
                 usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
                 label: Some("World Chunk Index Buffer"),
@@ -163,8 +165,8 @@ impl TerrainPass {
             globals,
             bind_group_layout,
             bind_groups: Default::default(),
-            vertex_buffer_pool: BufferPool::new(IndexedMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
-            index_buffer_pool: BufferPool::new(IndexedMesh::MAX_INDEX_MEM),
+            vertex_buckets: BucketPool::new(1, max_buffer_size as usize, IndexedMesh::MAX_INDEX as usize * Vertex::size_of() as usize),
+            index_buckets: BucketPool::new(1, max_buffer_size as usize, IndexedMesh::MAX_INDEX_MEM),
             vertex_buffer_general,
             vertex_buffer_world,
             index_buffer_world,
@@ -179,7 +181,6 @@ impl TerrainPass {
 
 impl Pass for TerrainPass {
 
-    //TODO update to gamedata
     fn update(&mut self, queue: &Queue, gamedata: &GameData) {
         // general purpose triangles
         let mut i = 0;
@@ -194,33 +195,33 @@ impl Pass for TerrainPass {
         // world chunk triangles
         let (visible, updated) = (&gamedata.visible_meshes, &gamedata.updated_mesh_keys);
         for (key, mesh) in visible {
-            let v = self.vertex_buffer_pool.reserve(key, updated);
+            let v = self.vertex_buckets.reserve(key, updated);
             match v {
                 None => {continue;}
                 Some(v) => {
-                    queue.write_buffer(&self.vertex_buffer_world, v as u64, mesh.vertex_array());
+                    queue.write_buffer(&self.vertex_buffer_world, v.offset as u64, mesh.vertex_array());
                 }
             }
-            let i = self.index_buffer_pool.reserve(key, updated);
+            let i = self.index_buckets.reserve(key, updated);
             match i {
                 None => {continue;}
                 Some(i) => {
-                    let offset = (v.unwrap() / Vertex::size_of()) as u32;
-                    queue.write_buffer(&self.index_buffer_world, i as u64, &mesh.index_array(offset));
+                    let offset = (v.unwrap().offset / Vertex::size_of()) as u32;
+                    queue.write_buffer(&self.index_buffer_world, i.offset as u64, &mesh.index_array(offset));
                 }
             }
         }
         // free chunks not visible
-        if self.vertex_buffer_pool.len() < visible.len()
-            || self.index_buffer_pool.len() < visible.len()
+        if self.vertex_buckets.len() < visible.len()
+            || self.index_buckets.len() < visible.len()
         {
-            let removed = self.vertex_buffer_pool.keep_reserved(visible);
+            let removed = self.vertex_buckets.keep_reserved(visible);
             for i in removed {
                 // queue.write_buffer(&self.vertex_buffer_world, i as u64, &[0; IndexedMesh::MAX_VERTS_MEM]);
             }
-            let removed = self.index_buffer_pool.keep_reserved(visible);
+            let removed = self.index_buckets.keep_reserved(visible);
             for i in removed {
-                queue.write_buffer(&self.index_buffer_world, i as u64, &[0; IndexedMesh::MAX_INDEX_MEM]);
+                queue.write_buffer(&self.index_buffer_world, i.offset as u64, &[0; IndexedMesh::MAX_INDEX_MEM]);
             }
         }
 
