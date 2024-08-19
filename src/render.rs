@@ -583,23 +583,19 @@ impl Light
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BucketCoord {
-    buffer: usize,
-    offset: usize,
+    buffer: u16,
+    offset: u16,
 }
 
 type MinBinaryHeap<T> = BinaryHeap<std::cmp::Reverse<T>>;
 
 pub struct BucketPool {
     // total number of pools (buffers)
-    pub num_dims: usize,
-    // derived
-    pub num_buckets: usize,
-    // total virtual memory
-    pub size: usize,
-    // bucket virtual offset
-    pub bucket_size: usize,
+    pub dims: u16,
+    // total number of buckets
+    pub size: u16,
     // tracks current number of dims loaded into pool (size)
-    pub cur_dim: usize,
+    pub cur_dim: u16,
     pub pool: MinBinaryHeap<BucketCoord>,
     pub reserved: SeaHashMap<SeaHashKey, BucketCoord>,
 }
@@ -607,24 +603,17 @@ pub struct BucketPool {
 impl BucketPool {
 
     #[inline]
-    pub fn len(&self) -> usize {self.pool.len()}
+    pub fn len(&self) -> usize {self.reserved.keys().len()}
 
     #[inline]
-    pub fn is_expandable(&self) -> bool {self.num_dims > self.cur_dim}
+    pub fn is_expandable(&self) -> bool {self.dims > self.cur_dim}
 
-    #[inline]
-    pub fn is_full(&self) -> bool {self.bucket_size + self.pool.len() > self.size}
-
-    pub fn new(num_dims: usize, size: usize, bucket_size: usize) -> Self {
-        let num_buckets = (size / bucket_size) * bucket_size;
-        println!("buffer pool {}, bucket_size {}", size, bucket_size);
+    pub fn new(dims: u16, size: u16) -> Self {
         let mut s = Self {
-            num_dims,
-            num_buckets,
+            dims,
             size,
-            bucket_size,
             cur_dim: 0,
-            pool: MinBinaryHeap::with_capacity(num_dims * num_buckets),
+            pool: MinBinaryHeap::with_capacity((dims * size) as usize),
             reserved: SeaHashMap::new(),
         };
         s.expand();
@@ -634,7 +623,7 @@ impl BucketPool {
     pub fn expand(&mut self) -> bool {
         if ! self.is_expandable() {return false;}
         self.pool.append(
-            &mut (0..self.num_buckets).step_by(self.bucket_size)
+            &mut (0..self.size)
                 .map(|x| std::cmp::Reverse(BucketCoord{buffer: self.cur_dim, offset: x}))
                 .collect::<MinBinaryHeap<BucketCoord>>()
         );
@@ -671,6 +660,100 @@ impl BucketPool {
         }
         self.reserved = keep_reserved;
         removed
+    }
+
+}
+
+//}}}
+
+//{{{
+
+pub struct IndexedBufferManager
+{
+    pub num_buffers: usize,
+    pub vertex_buffer_size: usize,
+    pub vertex_bucket_size: usize,
+    pub index_buffer_size: usize,
+    pub index_bucket_size: usize,
+    pub num_buckets: usize,
+    pub buckets: BucketPool,
+    pub vertex_buffers: Vec<Buffer>,
+    pub index_buffers: Vec<Buffer>,
+}
+
+impl IndexedBufferManager
+{
+
+    pub fn new(device: &Device, num_buffers: usize) -> Self {
+        let vertex_bucket_size = IndexedMesh::MAX_VERTS_MEM;
+        let vertex_buffer_size = Limits::downlevel_defaults().max_buffer_size as usize;
+        let num_buckets = vertex_buffer_size / vertex_bucket_size;
+        let index_bucket_size = IndexedMesh::MAX_INDEX_MEM;
+        let index_buffer_size = index_bucket_size * num_buckets;
+
+        let v_desc = &BufferDescriptor {
+                size: vertex_buffer_size as u64,
+                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+                label: Some("Managed Vertex Buffer"),
+        };
+
+        let i_desc = &BufferDescriptor {
+                size: index_buffer_size as u64,
+                usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+                label: Some("Managed Index Buffer"),
+        };
+
+        let mut vertex_buffers = vec![];
+        let mut index_buffers = vec![];
+        for i in 0..num_buffers {
+            vertex_buffers.push(device.create_buffer(v_desc));
+            index_buffers.push(device.create_buffer(i_desc));
+        }
+
+        Self {
+            num_buffers,
+            vertex_buffer_size,
+            vertex_bucket_size,
+            index_buffer_size,
+            index_bucket_size,
+            num_buckets,
+            buckets: BucketPool::new(num_buffers as u16, num_buckets as u16),
+            vertex_buffers,
+            index_buffers,
+        }
+    }
+
+    pub fn update(&mut self, queue: &Queue, gamedata: &GameData) {
+        // world chunk triangles
+        // index and vertex buffers correlated
+        let (visible, updated) = (&gamedata.visible_meshes, &gamedata.updated_mesh_keys);
+        for (key, mesh) in visible {
+            let c = self.buckets.reserve(key, updated);
+            match c {
+                None => {continue;}
+                Some(c) => {
+                    let v_buffer = &self.vertex_buffers[c.buffer as usize];
+                    let i_buffer = &self.index_buffers[c.buffer as usize];
+                    let vmem_offset = c.offset as u64 * self.vertex_bucket_size as u64;
+                    let imem_offset = c.offset as u64 * self.index_bucket_size as u64;
+                    let vcount_offset = c.offset as u32 * IndexedMesh::MAX_VERTS as u32;
+                    queue.write_buffer(v_buffer, vmem_offset, mesh.vertex_array());
+                    queue.write_buffer(i_buffer, imem_offset, &mesh.index_array(vcount_offset as u32));
+                }
+            }
+        }
+        // free chunks not visible
+        if self.buckets.len() > visible.len()
+        {
+            let removed = self.buckets.keep_reserved(visible);
+            for c in removed {
+                let buffer = &self.index_buffers[c.buffer as usize];
+                let offset = c.offset as u64 * self.index_bucket_size as u64;
+                queue.write_buffer(buffer, offset, &[0; IndexedMesh::MAX_INDEX_MEM]);
+            }
+        }
     }
 
 }

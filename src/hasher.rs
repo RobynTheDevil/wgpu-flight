@@ -39,6 +39,7 @@ impl<K, V> SeaHashMap<K, V>
             pub fn get(&self, k: &K) -> Option<&V>;
             pub fn insert(&mut self, k: K, v: V) -> Option<V>;
             pub fn contains_key(&self, k: &K) -> bool;
+            pub fn keys(&self) -> std::collections::hash_map::Keys<K, V>;
         }
     }
 }
