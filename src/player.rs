@@ -16,6 +16,7 @@ pub struct Player
     pub camera_rot: DMat4,
     pub player_speed: f64,
     pub camera_speed: f64,
+    pub mouse_sensitivity: f64,
 }
 
 impl Player
@@ -23,7 +24,7 @@ impl Player
 
 // get_input {{{
 
-    pub fn get_input(&mut self, elapsed_time: f64, keys: &HashSet<Keycode>)
+    pub fn update(&mut self, elapsed_time: f64, keys: &HashSet<Keycode>, mouse: IVec2)
     {
         // camera space
         let mut trans = dvec3(0.0, 0.0, 0.0);
@@ -34,13 +35,22 @@ impl Player
         if keys.contains(&Keycode::D) { trans += DDirection::RIGHT * self.player_speed * elapsed_time; }
         if keys.contains(&Keycode::LShift) { trans += DDirection::DOWN * self.player_speed * elapsed_time; }
         if keys.contains(&Keycode::Space) { trans  += DDirection::UP * self.player_speed * elapsed_time; }
+
         //rotations subtract for left handed rotation
-        if keys.contains(&Keycode::Up) { rot -= DDirection::RIGHT * self.camera_speed * elapsed_time; }
-        if keys.contains(&Keycode::Down) { rot -= DDirection::LEFT * self.camera_speed * elapsed_time; }
-        if keys.contains(&Keycode::Left) { rot -= DDirection::UP * self.camera_speed * elapsed_time; }
-        if keys.contains(&Keycode::Right) { rot -= DDirection::DOWN * self.camera_speed * elapsed_time; }
+        //keyboard camera control
+        // TODO: control switching
+        //if keys.contains(&Keycode::Up) { rot -= DDirection::RIGHT * self.camera_speed * elapsed_time; }
+        //if keys.contains(&Keycode::Down) { rot -= DDirection::LEFT * self.camera_speed * elapsed_time; }
+        //if keys.contains(&Keycode::Left) { rot -= DDirection::UP * self.camera_speed * elapsed_time; }
+        //if keys.contains(&Keycode::Right) { rot -= DDirection::DOWN * self.camera_speed * elapsed_time; }
+        // roll
         if keys.contains(&Keycode::E) { rot -=  DDirection::BACK * self.camera_speed * elapsed_time; }
         if keys.contains(&Keycode::Q) { rot -= DDirection::FORWARD * self.camera_speed * elapsed_time; }
+
+        //mouse camera control
+        if mouse.x != 0 { rot += DDirection::UP    * self.mouse_sensitivity * mouse.x as f64 * elapsed_time; }
+        if mouse.y != 0 { rot += DDirection::RIGHT * self.mouse_sensitivity * mouse.y as f64 * elapsed_time; }
+
         self.position = self.position + (self.rotation * trans.extend(1.0)).truncate();
         self.rotation = self.rotation * mat_rotation(rot);
         let err = self.rotation.col(0).dot(self.rotation.col(1));

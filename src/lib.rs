@@ -7,11 +7,13 @@
 
 use std::collections::HashSet;
 use pollster::FutureExt as _;
+use glam::*;
 use sdl2::{
-    EventPump,
+    Sdl, EventPump,
     event::{Event, WindowEvent},
     video::Window,
-    keyboard::*
+    keyboard::*,
+    mouse::*,
 };
 
 pub mod gpu;
@@ -29,6 +31,7 @@ use crate::gpu::Gpu;
 use crate::game::Game;
 
 pub struct App {
+    pub sdl_context: Sdl,
     pub title: String,
     pub events: EventPump,
     pub window: Window,
@@ -49,7 +52,9 @@ impl App {
             .build()
             .map_err(|e| e.to_string())?;
         let game = Game::new();
+        sdl_context.mouse().set_relative_mouse_mode(true);
         Ok(Self {
+            sdl_context,
             title,
             events,
             window,
@@ -65,6 +70,8 @@ impl App {
         let mut timer = std::time::Instant::now();
         let mut fps_avg = 0.0;
         let mut prev_keys = HashSet::new();
+        let mut orig_pos = ivec2(400, 300);
+        self.sdl_context.mouse().warp_mouse_in_window(&self.window, orig_pos.x, orig_pos.y);
 
         'running: loop {
             let elapsed_seconds = timer.elapsed().as_secs_f32();
@@ -81,6 +88,7 @@ impl App {
                         ..
                     } if window_id == self.window.id() => {
                         gpu.resize(width as u32, height as u32);
+                        orig_pos = ivec2(width / 2, height / 2);
                     }
                     Event::Quit { .. } | Event::KeyDown {
                         keycode: Some(Keycode::Escape),
@@ -102,11 +110,14 @@ impl App {
             // Get the difference between the new and old sets.
             let new_keys = &keys - &prev_keys;
             let old_keys = &prev_keys - &keys;
-            // if !new_keys.is_empty() || !old_keys.is_empty() {
-            //     println!("new_keys: {:?}\told_keys:{:?}", new_keys, old_keys);
-            // }
+            
+            let mouse = self.events.mouse_state();
+            let pos = ivec2(mouse.x(), mouse.y());
+            let change_pos = pos - orig_pos;
+            println!("pos: {:?}", change_pos);
+            self.sdl_context.mouse().warp_mouse_in_window(&self.window, orig_pos.x, orig_pos.y);
 
-            self.game.update(elapsed_seconds, &keys)?;
+            self.game.update(elapsed_seconds, &keys, change_pos)?;
             prev_keys = keys;
 
             // game render

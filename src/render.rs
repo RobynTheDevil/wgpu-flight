@@ -583,6 +583,7 @@ impl Light
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BucketCoord {
+    //order dependent
     buffer: u16,
     offset: u16,
 }
@@ -666,7 +667,7 @@ impl BucketPool {
 
 //}}}
 
-//{{{
+//{{{ IndexedBufferManager
 
 pub struct IndexedBufferManager
 {

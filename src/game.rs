@@ -56,7 +56,8 @@ impl Game {
                 camera_pos: dvec3(0.0, 0.0, 0.0),
                 camera_rot: mat_rotation(dvec3(0.0, 0.0, 0.0)),
                 player_speed: 15.0,
-                camera_speed: 3.0,
+                camera_speed: 3.0, //keyboard only
+                mouse_sensitivity: 0.5,
             },
             object_mesh: Mesh{..Default::default()},
             mat_view : dmat4(
@@ -96,9 +97,9 @@ impl Game {
         Ok(())
     }
 
-    pub fn update(&mut self, elapsed_time: f32, keys: &HashSet<Keycode>) -> Result<(), String>
+    pub fn update(&mut self, elapsed_time: f32, keys: &HashSet<Keycode>, mouse_pos: IVec2) -> Result<(), String>
     {
-        self.player.get_input(elapsed_time as f64, keys);
+        self.player.update(elapsed_time as f64, keys, mouse_pos);
         self.world.update(&self.player);
         // inverse look at
         self.mat_view = self.player.mat_view();

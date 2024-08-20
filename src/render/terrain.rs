@@ -35,6 +35,7 @@ impl TerrainPass {
         device: &Device,
         surface_config: &SurfaceConfiguration,
     ) -> Self {
+        let num_buffers = 10;
         let max_buffer_size = Limits::downlevel_defaults().max_buffer_size;
 
         // buffers
@@ -147,7 +148,7 @@ impl TerrainPass {
             bind_group_layout,
             bind_groups: Default::default(),
             vertex_buffer_general,
-            buffers: IndexedBufferManager::new(device, 1),
+            buffers: IndexedBufferManager::new(device, num_buffers),
             depth_texture,
             render_pipeline,
             verts_count: 0,
