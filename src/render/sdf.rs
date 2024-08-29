@@ -4,10 +4,11 @@ use wgpu::*;
 use glam::*;
 use crate::{
     gpu::Gpu,
-    hasher::*,
     game::Game,
-    octree::*,
-    math::*,
+    math::{*,
+        hasher::*,
+        octree::*,
+    },
     world::{*,
         sdftest::*,
     },

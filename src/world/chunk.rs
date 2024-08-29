@@ -6,11 +6,12 @@
 #![allow(unused_must_use)]
 
 use crate::{
-    math::*,
-    direction::*,
+    math::{*,
+        octree::*,
+        generator::DistanceField,
+        direction::*,
+    },
     world::*,
-    octree::*,
-    generator::DistanceField,
     render::*,
 };
 use glam::*;

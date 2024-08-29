@@ -7,7 +7,7 @@
 
 use glam::*;
 use crate::{
-    hasher::*,
+    math::hasher::*,
     player::Player,
     render::IndexedMesh,
 };

@@ -2,10 +2,11 @@ use std::collections::BinaryHeap;
 use wgpu::*;
 use glam::*;
 use crate::{
-    hasher::*,
-    math::*,
+    math::{*,
+        hasher::*,
+        octree::*,
+    },
     game::Game,
-    octree::*,
     render::globals::*,
 };
 

@@ -1,6 +1,6 @@
 use nohash_hasher::IntMap;
 use glam::*;
-use crate::hasher::*;
+use super::hasher::*;
 
 // Octree -- linearly hashed octree with locational codes
 

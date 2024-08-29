@@ -3,9 +3,10 @@ use wgpu::*;
 use glam::*;
 use crate::{
     gpu::Gpu,
-    hasher::*,
-    octree::*,
-    math::*,
+    math::{*,
+        hasher::*,
+        octree::*,
+    }
 };
 
 use super::{*,

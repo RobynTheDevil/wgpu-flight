@@ -2,10 +2,11 @@ use std::collections::HashSet;
 use glam::*;
 use sdl2::keyboard::Keycode;
 use crate::{
-    hasher::*,
-    math::*,
+    math::{*,
+        hasher::*,
+        direction::*,
+    },
     player::Player,
-    direction::*,
     world::{*,
         //bobbins::BobbinsWorld,
         sdftest::SdfWorld,

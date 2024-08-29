@@ -2,8 +2,9 @@ use std::collections::HashSet;
 use glam::*;
 use sdl2::keyboard::*;
 use crate::{
-    math::*,
-    direction::*,
+    math::{*,
+        direction::*,
+    },
     render::Mesh,
 };
 
